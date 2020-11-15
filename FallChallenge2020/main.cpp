@@ -517,6 +517,17 @@ std::string CommandCast(const int actionId, const int times)
 }
 
 /**
+ * @brief スペル取得
+ *
+ * @param actionId スペルID
+ * @return std::string コマンド
+ */
+std::string CommandCast(const int actionId)
+{
+	return Object::RoundActionLearn + " " + std::to_string(actionId);
+}
+
+/**
  * @brief スペル再使用
  *
  * @return std::string コマンド
