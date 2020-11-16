@@ -14,6 +14,7 @@
 #include <chrono>
 #include <algorithm>
 #include <memory>
+#include <atomic>
 
 #pragma region ライブラリ
 
@@ -522,7 +523,7 @@ std::string CommandCast(const int actionId, const int times)
  * @param actionId スペルID
  * @return std::string コマンド
  */
-std::string CommandCast(const int actionId)
+std::string CommandLearn(const int actionId)
 {
 	return Object::RoundActionLearn + " " + std::to_string(actionId);
 }
@@ -558,20 +559,8 @@ struct Data
 	std::vector<Magic> brews;
 	std::vector<Magic> casts;
 	std::array<std::string, Length> commands;
-	int count = 0;
 	int score = 0;
 	int castCount = 0;
-
-	bool operator<(const Data<Length> &o) const
-	{
-		if (count != o.count)
-			return count < o.count;
-
-		if (score != o.score)
-			return score < o.score;
-
-		return castCount < o.castCount;
-	}
 };
 
 class Simulator
@@ -592,17 +581,14 @@ public:
 		const auto &brews = share.getBrews();
 		const auto &casts = share.getCasts();
 
-		const int Turn = 10;
-		const int Width = 50;
+		const int Turn = 20;
+		const int Width = 3;
 		using DataPack = std::shared_ptr<Data<Turn>>;
 
 		struct DataLess
 		{
 			bool operator()(const DataPack &a, const DataPack &b) const
 			{
-				if (a->count != b->count)
-					return a->count < b->count;
-
 				if (a->score != b->score)
 					return a->score < b->score;
 
@@ -621,76 +607,82 @@ public:
 			chokudaiSearch.front().push(init);
 		}
 
-		forange(turn, Turn)
+		MilliSecTimer timer(std::chrono::milliseconds(20));
+
+		timer.start();
+		while (!timer)
 		{
-			forange(w, Width)
+
+			forange(turn, Turn)
 			{
-				if (chokudaiSearch[turn].empty())
-					continue;
-
-				const auto top = chokudaiSearch[turn].top();
-				chokudaiSearch[turn].pop();
-
-				for (auto &brew : top->brews)
+				forange(w, Width)
 				{
-					if (brew.castable)
+					if (chokudaiSearch[turn].empty())
+						continue;
+
+					const auto top = chokudaiSearch[turn].top();
+					chokudaiSearch[turn].pop();
+
+					for (auto &brew : top->brews)
 					{
-						if (top->inventory.isAccept(brew.delta))
+						if (brew.castable)
 						{
-							DataPack next = std::make_shared<DataPack::element_type>();
+							if (top->inventory.isAccept(brew.delta))
+							{
+								DataPack next = std::make_shared<DataPack::element_type>();
 
-							brew.castable = false;
-							(*next) = (*top);
-							brew.castable = true;
+								brew.castable = false;
+								(*next) = (*top);
+								brew.castable = true;
 
-							next->inventory += brew.delta;
+								next->inventory += brew.delta;
 
-							next->count += 1;
-							next->score += brew.price;
+								next->score += brew.price;
 
-							next->commands[turn] = CommandBrew(brew.actionId);
+								next->commands[turn] = CommandBrew(brew.actionId);
 
-							chokudaiSearch[turn + 1].push(next);
+								chokudaiSearch[turn + 1].push(next);
+							}
 						}
 					}
-				}
 
-				for (auto &cast : top->casts)
-				{
-					if (cast.castable)
+					for (auto &cast : top->casts)
 					{
-						if (top->inventory.isAccept(cast.delta))
+						if (cast.castable)
 						{
-							DataPack next = std::make_shared<DataPack::element_type>();
+							if (top->inventory.isAccept(cast.delta))
+							{
+								DataPack next = std::make_shared<DataPack::element_type>();
 
-							cast.castable = false;
-							(*next) = (*top);
+								cast.castable = false;
+								(*next) = (*top);
+								cast.castable = true;
+
+								next->inventory += cast.delta;
+
+								next->castCount += 1;
+
+								next->commands[turn] = CommandCast(cast.actionId);
+
+								chokudaiSearch[turn + 1].push(next);
+							}
+						}
+					}
+
+					{
+						DataPack next = std::make_shared<DataPack::element_type>();
+
+						(*next) = (*top);
+
+						for (auto &cast : next->casts)
+						{
 							cast.castable = true;
-
-							next->inventory += cast.delta;
-
-							next->castCount += 1;
-
-							next->commands[turn] = CommandCast(cast.actionId);
-
-							chokudaiSearch[turn + 1].push(next);
 						}
+
+						next->commands[turn] = CommandRest();
+
+						chokudaiSearch[turn + 1].push(next);
 					}
-				}
-
-				{
-					DataPack next = std::make_shared<DataPack::element_type>();
-
-					(*next) = (*top);
-
-					for (auto &cast : next->casts)
-					{
-						cast.castable = true;
-					}
-
-					next->commands[turn] = CommandRest();
-
-					chokudaiSearch[turn + 1].push(next);
 				}
 			}
 		}
