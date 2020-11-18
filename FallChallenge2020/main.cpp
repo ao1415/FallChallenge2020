@@ -14,6 +14,7 @@
 #include <chrono>
 #include <algorithm>
 #include <memory>
+#include <atomic>
 
 #pragma region ライブラリ
 
@@ -205,6 +206,8 @@ namespace Object
 	const std::string RoundActionRest = "REST";
 	const std::string RoundActionWait = "WAIT";
 
+	const int InventorySize = 10;
+
 } // namespace Object
 
 #pragma endregion
@@ -213,19 +216,31 @@ namespace Object
 
 struct Tier
 {
-	using value_type = int;
+	using value_type = char;
 
 	value_type tier0 = value_type();
 	value_type tier1 = value_type();
 	value_type tier2 = value_type();
 	value_type tier3 = value_type();
 
+	value_type sum = value_type();
+
 	Tier() {}
 	Tier(value_type tier0, value_type tier1, value_type tier2, value_type tier3)
-		: tier0(tier0),
-		  tier1(tier1),
-		  tier2(tier2),
-		  tier3(tier3) {}
+		: tier0(tier0), tier1(tier1), tier2(tier2), tier3(tier3)
+	{
+		setSum();
+	}
+
+	void setSum()
+	{
+		sum = tier0 + tier1 + tier2 + tier3;
+	}
+
+	value_type getSum() const
+	{
+		return sum;
+	}
 
 	Tier operator+(const Tier &o) const
 	{
@@ -245,26 +260,62 @@ struct Tier
 
 	bool isAccept(const Tier &o) const
 	{
-		bool isOver = true;
-		isOver &= (0 <= tier0 + o.tier0);
-		isOver &= (0 <= tier1 + o.tier1);
-		isOver &= (0 <= tier2 + o.tier2);
-		isOver &= (0 <= tier3 + o.tier3);
+		auto p = (*this) + o;
 
-		return isOver;
+		if (0 > p.tier0)
+			return false;
+		if (0 > p.tier1)
+			return false;
+		if (0 > p.tier2)
+			return false;
+		if (0 > p.tier3)
+			return false;
+
+		p.setSum();
+		if (p.getSum() > Object::InventorySize)
+			return false;
+
+		return true;
 	}
 };
 
 struct Magic
 {
-	int actionId = 0;		  // the unique ID of this spell or recipe
-	std::string actionType{}; // in the first league: CAST, OPPONENT_CAST, LEARN, BREW
-	Tier delta;				  // tier ingredient change
-	int price = 0;			  // the price in rupees if this is a potion
-	int tomeIndex = 0;		  // the index in the tome if this is a tome spell, equal to the read-ahead tax
-	int taxCount = 0;		  // the amount of taxed tier-0 ingredients you gain from learning this spell
-	bool castable = false;	  // in the first league: always 0; later: 1 if this is a castable player spell
-	bool repeatable = false;  // for the first two leagues: always 0; later: 1 if this is a repeatable player spell
+	/**
+	 * @brief ユニークID
+	 * 
+	 */
+	int actionId = 0; // the unique ID of this spell or recipe
+	/**
+	 * @brief 素材コスト
+	 * 
+	 */
+	Tier delta; // tier ingredient change
+	/**
+	 * @brief ポーションの値段
+	 * 
+	 */
+	int price = 0; // the price in rupees if this is a potion
+	/**
+	 * @brief スペルの先読み税
+	 * 
+	 */
+	int tomeIndex = 0; // the index in the tome if this is a tome spell, equal to the read-ahead tax
+	/**
+	 * @brief スペル取得時に入手するTier0素材数
+	 * 
+	 */
+	int taxCount = 0; // the amount of taxed tier-0 ingredients you gain from learning this spell
+	/**
+	 * @brief スペルの使用可否
+	 * true:使用可能、false:使用不可
+	 */
+	bool castable = false; // 1 if this is a castable player spell
+	/**
+	 * @brief スペルの連続使用可否
+	 * true:使用可能、false:使用不可
+	 */
+	bool repeatable = false; // 1 if this is a repeatable player spell
 };
 
 struct Inventory
@@ -415,16 +466,20 @@ public:
 		forange(i, static_cast<size_t>(actionCount))
 		{
 			decltype(share.brews)::value_type magic;
+			std::string actionType;
 
-			magic.actionId = read<decltype(magic.actionId)>();		 // the unique ID of this spell or recipe
-			magic.actionType = read<decltype(magic.actionType)>();	 // CAST, OPPONENT_CAST, LEARN, BREW
-			magic.delta.tier0 = read<decltype(magic.delta.tier0)>(); // tier-0 ingredient change
-			magic.delta.tier1 = read<decltype(magic.delta.tier1)>(); // tier-1 ingredient change
-			magic.delta.tier2 = read<decltype(magic.delta.tier2)>(); // tier-2 ingredient change
-			magic.delta.tier3 = read<decltype(magic.delta.tier3)>(); // tier-3 ingredient change
-			magic.price = read<decltype(magic.price)>();			 // the price in rupees if this is a potion
-			magic.tomeIndex = read<decltype(magic.tomeIndex)>();	 // the index in the tome if this is a tome spell, equal to the read-ahead tax
-			magic.taxCount = read<decltype(magic.taxCount)>();		 // the amount of taxed tier-0 ingredients you gain from learning this spell
+			magic.actionId = read<decltype(magic.actionId)>(); // the unique ID of this spell or recipe
+			actionType = read<decltype(actionType)>();		   // CAST, OPPONENT_CAST, LEARN, BREW
+
+			magic.delta.tier0 = static_cast<decltype(magic.delta.tier0)>(read<int>()); // tier-0 ingredient change
+			magic.delta.tier1 = static_cast<decltype(magic.delta.tier1)>(read<int>()); // tier-1 ingredient change
+			magic.delta.tier2 = static_cast<decltype(magic.delta.tier2)>(read<int>()); // tier-2 ingredient change
+			magic.delta.tier3 = static_cast<decltype(magic.delta.tier3)>(read<int>()); // tier-3 ingredient change
+			magic.delta.setSum();
+
+			magic.price = read<decltype(magic.price)>();		 // the price in rupees if this is a potion
+			magic.tomeIndex = read<decltype(magic.tomeIndex)>(); // the index in the tome if this is a tome spell, equal to the read-ahead tax
+			magic.taxCount = read<decltype(magic.taxCount)>();	 // the amount of taxed tier-0 ingredients you gain from learning this spell
 
 			int castable = read<decltype(castable)>();
 			magic.castable = (0 < castable); // 1 if this is a castable player spell
@@ -434,19 +489,19 @@ public:
 
 			ignore();
 
-			if (magic.actionType == Object::RoundActionCast)
+			if (actionType == Object::RoundActionCast)
 			{
 				share.casts.push_back(magic);
 			}
-			else if (magic.actionType == Object::RoundActionOpponentCast)
+			else if (actionType == Object::RoundActionOpponentCast)
 			{
 				share.opponentCasts.push_back(magic);
 			}
-			else if (magic.actionType == Object::RoundActionLearn)
+			else if (actionType == Object::RoundActionLearn)
 			{
 				share.learns.push_back(magic);
 			}
-			else if (magic.actionType == Object::RoundActionBrew)
+			else if (actionType == Object::RoundActionBrew)
 			{
 				magic.castable = true;
 				share.brews.push_back(magic);
@@ -456,11 +511,13 @@ public:
 		{
 			auto &inv = share.inventory;
 
-			inv.inv.tier0 = read<decltype(inv.inv.tier0)>(); // tier-0 ingredients in inventory
-			inv.inv.tier1 = read<decltype(inv.inv.tier1)>(); // tier-1 ingredients in inventory
-			inv.inv.tier2 = read<decltype(inv.inv.tier2)>(); // tier-2 ingredients in inventory
-			inv.inv.tier3 = read<decltype(inv.inv.tier3)>(); // tier-3 ingredients in inventory
-			inv.score = read<decltype(inv.score)>();		 // amount of rupees
+			inv.inv.tier0 = static_cast<decltype(inv.inv.tier0)>(read<int>()); // tier-0 ingredients in inventory
+			inv.inv.tier1 = static_cast<decltype(inv.inv.tier1)>(read<int>()); // tier-1 ingredients in inventory
+			inv.inv.tier2 = static_cast<decltype(inv.inv.tier2)>(read<int>()); // tier-2 ingredients in inventory
+			inv.inv.tier3 = static_cast<decltype(inv.inv.tier3)>(read<int>()); // tier-3 ingredients in inventory
+			inv.inv.setSum();
+
+			inv.score = read<decltype(inv.score)>(); // amount of rupees
 
 			ignore();
 		}
@@ -468,11 +525,13 @@ public:
 		{
 			auto &inv = share.opponentInventory;
 
-			inv.inv.tier0 = read<decltype(inv.inv.tier0)>(); // tier-0 ingredients in inventory
-			inv.inv.tier1 = read<decltype(inv.inv.tier1)>(); // tier-1 ingredients in inventory
-			inv.inv.tier2 = read<decltype(inv.inv.tier2)>(); // tier-2 ingredients in inventory
-			inv.inv.tier3 = read<decltype(inv.inv.tier3)>(); // tier-3 ingredients in inventory
-			inv.score = read<decltype(inv.score)>();		 // amount of rupees
+			inv.inv.tier0 = static_cast<decltype(inv.inv.tier0)>(read<int>()); // tier-0 ingredients in inventory
+			inv.inv.tier1 = static_cast<decltype(inv.inv.tier1)>(read<int>()); // tier-1 ingredients in inventory
+			inv.inv.tier2 = static_cast<decltype(inv.inv.tier2)>(read<int>()); // tier-2 ingredients in inventory
+			inv.inv.tier3 = static_cast<decltype(inv.inv.tier3)>(read<int>()); // tier-3 ingredients in inventory
+			inv.inv.setSum();
+
+			inv.score = read<decltype(inv.score)>(); // amount of rupees
 
 			ignore();
 		}
@@ -522,7 +581,7 @@ std::string CommandCast(const int actionId, const int times)
  * @param actionId スペルID
  * @return std::string コマンド
  */
-std::string CommandCast(const int actionId)
+std::string CommandLearn(const int actionId)
 {
 	return Object::RoundActionLearn + " " + std::to_string(actionId);
 }
@@ -538,7 +597,7 @@ std::string CommandRest()
 }
 
 /**
- * @brief スペル再使用
+ * @brief なにもしない
  *
  * @return std::string コマンド
  */
@@ -551,27 +610,107 @@ std::string CommandWait()
 
 #pragma region AI
 
+class CommandPack
+{
+private:
+	enum class Operation : char
+	{
+		Brew,
+		Cast,
+		Learn,
+		Rest,
+		Wait
+	};
+
+	Operation operation = Operation::Wait;
+	char actionId = 0;
+	char times = 0;
+
+	CommandPack(const Operation operation)
+		: CommandPack(operation, 0, 0) {}
+	CommandPack(const Operation operation, const char actionId)
+		: CommandPack(operation, actionId, 0) {}
+	CommandPack(const Operation operation, const char actionId, const char times)
+		: operation(operation), actionId(actionId), times(times) {}
+
+public:
+	CommandPack() {}
+
+	std::string getCommand() const
+	{
+
+		switch (operation)
+		{
+		case Operation::Brew:
+			return CommandBrew(actionId);
+		case Operation::Cast:
+			if (times > 0)
+				return CommandCast(actionId, times);
+			else
+				return CommandCast(actionId);
+		case Operation::Learn:
+			return CommandLearn(actionId);
+		case Operation::Rest:
+			return CommandRest();
+		case Operation::Wait:
+			return CommandWait();
+
+		default:
+			return CommandWait();
+		}
+	}
+
+	/**
+	 * @brief ポーション生成
+	 * 
+	 * @param actionId ポーションID
+	 * @return CommandPack コマンド
+	 */
+	static CommandPack Brew(const int actionId) { return CommandPack(Operation::Brew, actionId); }
+
+	/**
+	 * @brief スペル実行
+	 *
+	 * @param actionId スペルID
+	 * @param times 繰り返し回数
+	 * @return CommandPack コマンド
+	 */
+	static CommandPack Cast(const int actionId, const int times = 0) { return CommandPack(Operation::Cast, actionId, times); }
+
+	/**
+	 * @brief スペル取得
+	 *
+	 * @param actionId スペルID
+	 * @return CommandPack コマンド
+	 */
+	static CommandPack Learn(const int actionId) { return CommandPack(Operation::Learn, actionId); }
+
+	/**
+	 * @brief スペル再使用
+	 *
+	 * @return CommandPack コマンド
+	 */
+	static CommandPack Rest() { return CommandPack(Operation::Rest); }
+
+	/**
+	 * @brief なにもしない
+	 *
+	 * @return CommandPack コマンド
+	 */
+	static CommandPack Wait() { return CommandPack(Operation::Wait); }
+};
+
 template <size_t Length>
 struct Data
 {
 	Tier inventory;
+	std::vector<Magic> learns;
 	std::vector<Magic> brews;
 	std::vector<Magic> casts;
-	std::array<std::string, Length> commands;
-	int count = 0;
-	int score = 0;
+	std::array<CommandPack, Length> commands;
+	double score = 0;
+	int price = 0;
 	int castCount = 0;
-
-	bool operator<(const Data<Length> &o) const
-	{
-		if (count != o.count)
-			return count < o.count;
-
-		if (score != o.score)
-			return score < o.score;
-
-		return castCount < o.castCount;
-	}
 };
 
 class Simulator
@@ -582,6 +721,144 @@ public:
 
 class AI
 {
+private:
+	static const int SearchTurn = 20;
+	static const int ChokudaiWidth = 3;
+
+	using DataPack = std::shared_ptr<Data<SearchTurn>>;
+
+	int popCount;
+	int pushCount;
+
+	struct DataLess
+	{
+		bool operator()(const DataPack &a, const DataPack &b) const
+		{
+			if (a->score != b->score)
+				return a->score < b->score;
+
+			if (a->price != b->price)
+				return a->price < b->price;
+
+			return a->castCount < b->castCount;
+		}
+	};
+
+	using PriorityQueue = std::priority_queue<DataPack, std::vector<DataPack>, DataLess>;
+
+	//6 LEARN [2 1 -2 1] 0 5 0 0 1
+	//78 CAST [2 0 0 0] 0 -1 -1 1 0
+
+	Magic learn2cast(const Magic &learn) const
+	{
+		Magic cast = learn;
+
+		cast.tomeIndex = -1;
+		cast.taxCount = -1;
+		cast.castable = true;
+
+		if (cast.delta.tier0 < 0 || cast.delta.tier1 < 0 || cast.delta.tier2 < 0 || cast.delta.tier3 < 0)
+		{
+			cast.repeatable = true;
+		}
+		else
+		{
+			cast.repeatable = false;
+		}
+
+		return cast;
+	}
+
+	void setLearn(std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
+	{
+		forange(turn, 2)
+		{
+			while (!chokudaiSearch[turn].empty())
+			{
+				const auto top = chokudaiSearch[turn].top();
+				chokudaiSearch[turn].pop();
+				popCount++;
+
+				//スペル取得
+				for (const auto &learn : top->learns)
+				{
+					if (top->inventory.tier0 >= learn.tomeIndex)
+					{
+						DataPack next = std::make_shared<DataPack::element_type>();
+
+						(*next) = (*top);
+						next->inventory.tier0 -= learn.tomeIndex;
+						next->inventory.tier0 += learn.taxCount;
+						next->inventory.setSum();
+						const int sum = next->inventory.getSum();
+						if (sum > Object::InventorySize)
+						{
+							next->inventory.tier0 -= sum - Object::InventorySize;
+						}
+
+						//TODO:LEARNからCASTへの変換機構を作成する
+						next->casts.push_back(learn2cast(learn));
+
+						next->commands[turn] = CommandPack::Learn(learn.actionId);
+
+						chokudaiSearch[turn + 1].push(next);
+						pushCount++;
+					}
+				}
+
+				//tier0キャスト
+				for (auto &cast : top->casts)
+				{
+					if (cast.castable)
+					{
+						if (cast.delta.tier0 > 0)
+						{
+							if (top->inventory.isAccept(cast.delta))
+							{
+								DataPack next = std::make_shared<DataPack::element_type>();
+
+								cast.castable = false;
+								(*next) = (*top);
+								cast.castable = true;
+
+								next->inventory += cast.delta;
+
+								next->castCount += 1;
+
+								next->commands[turn] = CommandPack::Cast(cast.actionId);
+
+								chokudaiSearch[turn + 1].push(next);
+								pushCount++;
+
+								if (cast.repeatable)
+								{
+									int times = 2;
+									auto inv = next->inventory;
+									while (inv.isAccept(cast.delta))
+									{
+										DataPack next2 = std::make_shared<DataPack::element_type>();
+
+										(*next2) = (*next);
+
+										inv += cast.delta;
+										next->inventory = inv;
+
+										next->commands[turn] = CommandPack::Cast(cast.actionId, times);
+
+										chokudaiSearch[turn + 1].push(next);
+										pushCount++;
+
+										times++;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 public:
 	std::string think()
 	{
@@ -589,108 +866,133 @@ public:
 
 		const auto &inv = share.getInventory();
 
+		const auto &learns = share.getLearns();
 		const auto &brews = share.getBrews();
 		const auto &casts = share.getCasts();
 
-		const int Turn = 10;
-		const int Width = 50;
-		using DataPack = std::shared_ptr<Data<Turn>>;
+		popCount = 0;
+		pushCount = 0;
 
-		struct DataLess
-		{
-			bool operator()(const DataPack &a, const DataPack &b) const
-			{
-				if (a->count != b->count)
-					return a->count < b->count;
-
-				if (a->score != b->score)
-					return a->score < b->score;
-
-				return a->castCount < b->castCount;
-			}
-		};
-
-		std::array<std::priority_queue<DataPack, std::vector<DataPack>, DataLess>, Turn + 1> chokudaiSearch;
+		std::array<PriorityQueue, SearchTurn + 1> chokudaiSearch;
 		{
 			DataPack init = std::make_shared<DataPack::element_type>();
+			DataPack init2 = std::make_shared<DataPack::element_type>();
 
 			init->inventory = inv.inv;
+			init->learns = learns;
 			init->brews = brews;
 			init->casts = casts;
 
+			(*init2) = (*init);
+
 			chokudaiSearch.front().push(init);
+
+			setLearn(chokudaiSearch);
+
+			chokudaiSearch.front().push(init2);
 		}
 
-		forange(turn, Turn)
+		MilliSecTimer timer(std::chrono::milliseconds(20));
+
+		timer.start();
+		while (!timer)
 		{
-			forange(w, Width)
+			forange(turn, SearchTurn)
 			{
-				if (chokudaiSearch[turn].empty())
-					continue;
-
-				const auto top = chokudaiSearch[turn].top();
-				chokudaiSearch[turn].pop();
-
-				for (auto &brew : top->brews)
+				forange(w, ChokudaiWidth)
 				{
-					if (brew.castable)
+					if (chokudaiSearch[turn].empty())
+						continue;
+
+					const auto top = chokudaiSearch[turn].top();
+					chokudaiSearch[turn].pop();
+					popCount++;
+
+					for (auto &brew : top->brews)
 					{
-						if (top->inventory.isAccept(brew.delta))
+						if (brew.castable)
 						{
-							DataPack next = std::make_shared<DataPack::element_type>();
+							if (top->inventory.isAccept(brew.delta))
+							{
+								DataPack next = std::make_shared<DataPack::element_type>();
 
-							brew.castable = false;
-							(*next) = (*top);
-							brew.castable = true;
+								brew.castable = false;
+								(*next) = (*top);
+								brew.castable = true;
 
-							next->inventory += brew.delta;
+								next->inventory += brew.delta;
 
-							next->count += 1;
-							next->score += brew.price;
+								next->price += brew.price;
 
-							next->commands[turn] = CommandBrew(brew.actionId);
+								next->commands[turn] = CommandPack::Brew(brew.actionId);
 
-							chokudaiSearch[turn + 1].push(next);
+								chokudaiSearch[turn + 1].push(next);
+								pushCount++;
+							}
 						}
 					}
-				}
 
-				for (auto &cast : top->casts)
-				{
-					if (cast.castable)
+					for (auto &cast : top->casts)
 					{
-						if (top->inventory.isAccept(cast.delta))
+						if (cast.castable)
 						{
-							DataPack next = std::make_shared<DataPack::element_type>();
+							if (top->inventory.isAccept(cast.delta))
+							{
+								DataPack next = std::make_shared<DataPack::element_type>();
 
-							cast.castable = false;
-							(*next) = (*top);
+								cast.castable = false;
+								(*next) = (*top);
+								cast.castable = true;
+
+								next->inventory += cast.delta;
+
+								next->castCount += 1;
+
+								next->commands[turn] = CommandPack::Cast(cast.actionId);
+
+								chokudaiSearch[turn + 1].push(next);
+								pushCount++;
+
+								if (cast.repeatable)
+								{
+									int times = 2;
+									auto inv = next->inventory;
+									while (inv.isAccept(cast.delta))
+									{
+										DataPack next2 = std::make_shared<DataPack::element_type>();
+
+										(*next2) = (*next);
+
+										inv += cast.delta;
+										next->inventory = inv;
+
+										next->commands[turn] = CommandPack::Cast(cast.actionId, times);
+
+										chokudaiSearch[turn + 1].push(next);
+										pushCount++;
+
+										times++;
+									}
+								}
+							}
+						}
+					}
+
+					{
+						DataPack next = std::make_shared<DataPack::element_type>();
+
+						(*next) = (*top);
+
+						for (auto &cast : next->casts)
+						{
 							cast.castable = true;
-
-							next->inventory += cast.delta;
-
-							next->castCount += 1;
-
-							next->commands[turn] = CommandCast(cast.actionId);
-
-							chokudaiSearch[turn + 1].push(next);
 						}
+
+						next->commands[turn] = CommandPack::Rest();
+
+						chokudaiSearch[turn + 1].push(next);
+						pushCount++;
 					}
-				}
-
-				{
-					DataPack next = std::make_shared<DataPack::element_type>();
-
-					(*next) = (*top);
-
-					for (auto &cast : next->casts)
-					{
-						cast.castable = true;
-					}
-
-					next->commands[turn] = CommandRest();
-
-					chokudaiSearch[turn + 1].push(next);
 				}
 			}
 		}
@@ -702,7 +1004,11 @@ public:
 		}
 		else
 		{
-			return chokudaiSearch.back().top()->commands.front();
+			const auto top = chokudaiSearch.back().top();
+			const auto com = top->commands.front().getCommand();
+			const auto mes = "pu:" + std::to_string(pushCount) + "\tpo:" + std::to_string(popCount);
+
+			return com + " " + mes;
 		}
 	}
 };
