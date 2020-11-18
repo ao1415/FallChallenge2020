@@ -206,6 +206,8 @@ namespace Object
 	const std::string RoundActionRest = "REST";
 	const std::string RoundActionWait = "WAIT";
 
+	const int InventorySize = 10;
+
 } // namespace Object
 
 #pragma endregion
@@ -270,7 +272,7 @@ struct Tier
 			return false;
 
 		p.setSum();
-		if (p.getSum() > 10)
+		if (p.getSum() > Object::InventorySize)
 			return false;
 
 		return true;
@@ -725,6 +727,9 @@ private:
 
 	using DataPack = std::shared_ptr<Data<SearchTurn>>;
 
+	int popCount;
+	int pushCount;
+
 	struct DataLess
 	{
 		bool operator()(const DataPack &a, const DataPack &b) const
@@ -772,23 +777,32 @@ private:
 			{
 				const auto top = chokudaiSearch[turn].top();
 				chokudaiSearch[turn].pop();
+				popCount++;
 
 				//スペル取得
 				for (const auto &learn : top->learns)
 				{
 					if (top->inventory.tier0 >= learn.tomeIndex)
 					{
-						DataPack data = std::make_shared<DataPack::element_type>();
+						DataPack next = std::make_shared<DataPack::element_type>();
 
-						(*data) = (*top);
-						data->inventory.tier0 -= learn.tomeIndex;
+						(*next) = (*top);
+						next->inventory.tier0 -= learn.tomeIndex;
+						next->inventory.tier0 += learn.taxCount;
+						next->inventory.setSum();
+						const int sum = next->inventory.getSum();
+						if (sum > Object::InventorySize)
+						{
+							next->inventory.tier0 -= sum - Object::InventorySize;
+						}
 
 						//TODO:LEARNからCASTへの変換機構を作成する
-						data->casts.push_back(learn2cast(learn));
+						next->casts.push_back(learn2cast(learn));
 
-						data->commands[turn] = CommandPack::Learn(learn.actionId);
+						next->commands[turn] = CommandPack::Learn(learn.actionId);
 
-						chokudaiSearch[turn + 1].push(data);
+						chokudaiSearch[turn + 1].push(next);
+						pushCount++;
 					}
 				}
 
@@ -801,30 +815,38 @@ private:
 						{
 							if (top->inventory.isAccept(cast.delta))
 							{
-								DataPack data = std::make_shared<DataPack::element_type>();
+								DataPack next = std::make_shared<DataPack::element_type>();
 
 								cast.castable = false;
-								(*data) = (*top);
+								(*next) = (*top);
 								cast.castable = true;
 
-								data->inventory += cast.delta;
+								next->inventory += cast.delta;
 
-								data->castCount += 1;
+								next->castCount += 1;
 
-								data->commands[turn] = CommandPack::Cast(cast.actionId);
+								next->commands[turn] = CommandPack::Cast(cast.actionId);
 
-								chokudaiSearch[turn + 1].push(data);
+								chokudaiSearch[turn + 1].push(next);
+								pushCount++;
 
 								if (cast.repeatable)
 								{
 									int times = 2;
-									while (data->inventory.isAccept(cast.delta))
+									auto inv = next->inventory;
+									while (inv.isAccept(cast.delta))
 									{
-										data->inventory += cast.delta;
+										DataPack next2 = std::make_shared<DataPack::element_type>();
 
-										data->commands[turn] = CommandPack::Cast(cast.actionId, times);
+										(*next2) = (*next);
 
-										chokudaiSearch[turn + 1].push(data);
+										inv += cast.delta;
+										next->inventory = inv;
+
+										next->commands[turn] = CommandPack::Cast(cast.actionId, times);
+
+										chokudaiSearch[turn + 1].push(next);
+										pushCount++;
 
 										times++;
 									}
@@ -848,22 +870,25 @@ public:
 		const auto &brews = share.getBrews();
 		const auto &casts = share.getCasts();
 
+		popCount = 0;
+		pushCount = 0;
+
 		std::array<PriorityQueue, SearchTurn + 1> chokudaiSearch;
 		{
 			DataPack init = std::make_shared<DataPack::element_type>();
 			DataPack init2 = std::make_shared<DataPack::element_type>();
-			
+
 			init->inventory = inv.inv;
 			init->learns = learns;
 			init->brews = brews;
 			init->casts = casts;
 
 			(*init2) = (*init);
-			
+
 			chokudaiSearch.front().push(init);
-			
+
 			setLearn(chokudaiSearch);
-			
+
 			chokudaiSearch.front().push(init2);
 		}
 
@@ -881,6 +906,7 @@ public:
 
 					const auto top = chokudaiSearch[turn].top();
 					chokudaiSearch[turn].pop();
+					popCount++;
 
 					for (auto &brew : top->brews)
 					{
@@ -901,6 +927,7 @@ public:
 								next->commands[turn] = CommandPack::Brew(brew.actionId);
 
 								chokudaiSearch[turn + 1].push(next);
+								pushCount++;
 							}
 						}
 					}
@@ -924,6 +951,29 @@ public:
 								next->commands[turn] = CommandPack::Cast(cast.actionId);
 
 								chokudaiSearch[turn + 1].push(next);
+								pushCount++;
+
+								if (cast.repeatable)
+								{
+									int times = 2;
+									auto inv = next->inventory;
+									while (inv.isAccept(cast.delta))
+									{
+										DataPack next2 = std::make_shared<DataPack::element_type>();
+
+										(*next2) = (*next);
+
+										inv += cast.delta;
+										next->inventory = inv;
+
+										next->commands[turn] = CommandPack::Cast(cast.actionId, times);
+
+										chokudaiSearch[turn + 1].push(next);
+										pushCount++;
+
+										times++;
+									}
+								}
 							}
 						}
 					}
@@ -941,6 +991,7 @@ public:
 						next->commands[turn] = CommandPack::Rest();
 
 						chokudaiSearch[turn + 1].push(next);
+						pushCount++;
 					}
 				}
 			}
@@ -955,8 +1006,9 @@ public:
 		{
 			const auto top = chokudaiSearch.back().top();
 			const auto com = top->commands.front().getCommand();
-			
-			return com;
+			const auto mes = "pu:" + std::to_string(pushCount) + "\tpo:" + std::to_string(popCount);
+
+			return com + " " + mes;
 		}
 	}
 };
