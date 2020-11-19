@@ -1,4 +1,15 @@
+#ifndef _MSC_VER
+
 #pragma GCC optimize "O3,omit-frame-pointer,inline"
+
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#else
+
+#define likely(x) x
+#define unlikely(x) x
+
+#endif
 
 #define REDIRECT_
 
@@ -7,9 +18,11 @@
 
 #include <vector>
 #include <array>
+
 #include <set>
 #include <map>
 #include <queue>
+#include <deque>
 
 #include <chrono>
 #include <algorithm>
@@ -193,6 +206,80 @@ public:
 	}
 };
 
+template <class Type, size_t Size>
+class MemoryPool
+{
+private:
+	using Deque = std::deque<Type *>;
+
+	Type *m_data = nullptr;
+
+	bool isRecycle = false;
+	size_t pointer = 0;
+	Deque addr;
+
+	MemoryPool()
+	{
+		uint64_t memorySize = sizeof(Type) * Size;
+		m_data = static_cast<Type *>(std::malloc(memorySize));
+
+		std::cerr << "Memory Size:" << memorySize / 1024.0 / 1024.0 << "MB" << std::endl;
+	}
+
+public:
+	inline static std::shared_ptr<MemoryPool<Type, Size>> instance{};
+
+	static void Create()
+	{
+		instance.reset(new MemoryPool());
+	}
+
+	~MemoryPool()
+	{
+		if (m_data != nullptr)
+			std::free(m_data);
+	}
+
+	void clear()
+	{
+		isRecycle = false;
+		pointer = 0;
+		addr.clear();
+	}
+
+	void *get()
+	{
+		if (unlikely(isRecycle))
+		{
+			if (unlikely(addr.empty()))
+			{
+				std::cerr << "MemoryPool out of range" << std::endl;
+				return nullptr;
+			}
+
+			const auto p = addr.back();
+			addr.pop_back();
+
+			return p;
+		}
+		else
+		{
+			pointer++;
+			if (pointer >= Size)
+			{
+				isRecycle = true;
+			}
+
+			return &m_data[pointer - 1];
+		}
+	}
+
+	void release(Type *p)
+	{
+		addr.push_back(p);
+	}
+};
+
 #pragma endregion
 
 #pragma region 定数宣言
@@ -256,6 +343,22 @@ struct Tier
 		tier1 += o.tier1;
 		tier2 += o.tier2;
 		tier3 += o.tier3;
+	}
+
+	bool operator==(const Tier &o) const
+	{
+		return (tier0 == o.tier0 && tier1 == o.tier1 && tier2 == o.tier2 && tier3 == o.tier3);
+	}
+
+	bool operator<(const Tier &o) const
+	{
+		if (tier0 != o.tier0)
+			return tier0 < o.tier0;
+		if (tier1 != o.tier1)
+			return tier1 < o.tier1;
+		if (tier2 != o.tier2)
+			return tier2 < o.tier2;
+		return tier3 < o.tier3;
 	}
 
 	bool isAccept(const Tier &o) const
@@ -323,6 +426,227 @@ struct Inventory
 	Tier inv;	   // tier ingredient change
 	int score = 0; // amount of rupees
 };
+
+const Magic ID00{0, Tier(-3, 0, 0, 1), 0, -1, -1, false, true};
+const Magic ID01{1, Tier(3, -1, 0, 0), 0, -1, -1, false, true};
+const Magic ID02{2, Tier(1, 1, 0, 0), 0, -1, -1, false, false};
+const Magic ID03{3, Tier(0, 0, 1, 0), 0, -1, -1, false, false};
+const Magic ID04{4, Tier(3, 0, 0, 0), 0, -1, -1, false, false};
+const Magic ID05{5, Tier(2, 3, -2, 0), 0, -1, -1, false, true};
+const Magic ID06{6, Tier(2, 1, -2, 1), 0, -1, -1, false, true};
+const Magic ID07{7, Tier(3, 0, 1, -1), 0, -1, -1, false, true};
+const Magic ID08{8, Tier(3, -2, 1, 0), 0, -1, -1, false, true};
+const Magic ID09{9, Tier(2, -3, 2, 0), 0, -1, -1, false, true};
+const Magic ID10{10, Tier(2, 2, 0, -1), 0, -1, -1, false, true};
+const Magic ID11{11, Tier(-4, 0, 2, 0), 0, -1, -1, false, true};
+const Magic ID12{12, Tier(2, 1, 0, 0), 0, -1, -1, false, false};
+const Magic ID13{13, Tier(4, 0, 0, 0), 0, -1, -1, false, false};
+const Magic ID14{14, Tier(0, 0, 0, 1), 0, -1, -1, false, false};
+const Magic ID15{15, Tier(0, 2, 0, 0), 0, -1, -1, false, false};
+const Magic ID16{16, Tier(1, 0, 1, 0), 0, -1, -1, false, false};
+const Magic ID17{17, Tier(-2, 0, 1, 0), 0, -1, -1, false, true};
+const Magic ID18{18, Tier(-1, -1, 0, 1), 0, -1, -1, false, true};
+const Magic ID19{19, Tier(0, 2, -1, 0), 0, -1, -1, false, true};
+const Magic ID20{20, Tier(2, -2, 0, 1), 0, -1, -1, false, true};
+const Magic ID21{21, Tier(-3, 1, 1, 0), 0, -1, -1, false, true};
+const Magic ID22{22, Tier(0, 2, -2, 1), 0, -1, -1, false, true};
+const Magic ID23{23, Tier(1, -3, 1, 1), 0, -1, -1, false, true};
+const Magic ID24{24, Tier(0, 3, 0, -1), 0, -1, -1, false, true};
+const Magic ID25{25, Tier(0, -3, 0, 2), 0, -1, -1, false, true};
+const Magic ID26{26, Tier(1, 1, 1, -1), 0, -1, -1, false, true};
+const Magic ID27{27, Tier(1, 2, -1, 0), 0, -1, -1, false, true};
+const Magic ID28{28, Tier(4, 1, -1, 0), 0, -1, -1, false, true};
+const Magic ID29{29, Tier(-5, 0, 0, 2), 0, -1, -1, false, true};
+const Magic ID30{30, Tier(-4, 0, 1, 1), 0, -1, -1, false, true};
+const Magic ID31{31, Tier(0, 3, 2, -2), 0, -1, -1, false, true};
+const Magic ID32{32, Tier(1, 1, 3, -2), 0, -1, -1, false, true};
+const Magic ID33{33, Tier(-5, 0, 3, 0), 0, -1, -1, false, true};
+const Magic ID34{34, Tier(-2, 0, -1, 2), 0, -1, -1, false, true};
+const Magic ID35{35, Tier(0, 0, -3, 3), 0, -1, -1, false, true};
+const Magic ID36{36, Tier(0, -3, 3, 0), 0, -1, -1, false, true};
+const Magic ID37{37, Tier(-3, 3, 0, 0), 0, -1, -1, false, true};
+const Magic ID38{38, Tier(-2, 2, 0, 0), 0, -1, -1, false, true};
+const Magic ID39{39, Tier(0, 0, -2, 2), 0, -1, -1, false, true};
+const Magic ID40{40, Tier(0, -2, 2, 0), 0, -1, -1, false, true};
+const Magic ID41{41, Tier(0, 0, 2, -1), 0, -1, -1, false, true};
+
+const Magic ID78{42, Tier(2, 0, 0, 0), 0, -1, -1, true, false};
+const Magic ID79{43, Tier(-1, 1, 0, 0), 0, -1, -1, true, false};
+const Magic ID80{44, Tier(0, -1, 1, 0), 0, -1, -1, true, false};
+const Magic ID81{45, Tier(0, 0, -1, 1), 0, -1, -1, true, false};
+
+const Magic ID42{42, Tier(-2, -2, -0, -0), 6, -1, -1, false, false};
+const Magic ID43{43, Tier(-3, -2, -0, -0), 7, -1, -1, false, false};
+const Magic ID44{44, Tier(-0, -4, -0, -0), 8, -1, -1, false, false};
+const Magic ID45{45, Tier(-2, -0, -2, -0), 8, -1, -1, false, true};
+const Magic ID46{46, Tier(-2, -3, -0, -0), 8, -1, -1, false, true};
+const Magic ID47{47, Tier(-3, -0, -2, -0), 9, -1, -1, false, true};
+const Magic ID48{48, Tier(-0, -2, -2, -0), 10, -1, -1, false, true};
+const Magic ID49{49, Tier(-0, -5, -0, -0), 10, -1, -1, false, true};
+const Magic ID50{50, Tier(-2, -0, -0, -2), 10, -1, -1, false, true};
+const Magic ID51{51, Tier(-2, -0, -3, -0), 11, -1, -1, false, true};
+const Magic ID52{52, Tier(-3, -0, -0, -2), 11, -1, -1, false, false};
+const Magic ID53{53, Tier(-0, -0, -4, -0), 12, -1, -1, false, false};
+const Magic ID54{54, Tier(-0, -2, -0, -2), 12, -1, -1, false, false};
+const Magic ID55{55, Tier(-0, -3, -2, -0), 12, -1, -1, false, false};
+const Magic ID56{56, Tier(-0, -2, -3, -0), 13, -1, -1, false, false};
+const Magic ID57{57, Tier(-0, -0, -2, -2), 14, -1, -1, false, true};
+const Magic ID58{58, Tier(-0, -3, -0, -2), 14, -1, -1, false, true};
+const Magic ID59{59, Tier(-2, -0, -0, -3), 14, -1, -1, false, true};
+const Magic ID60{60, Tier(-0, -0, -5, -0), 15, -1, -1, false, true};
+const Magic ID61{61, Tier(-0, -0, -0, -4), 16, -1, -1, false, true};
+const Magic ID62{62, Tier(-0, -2, -0, -3), 16, -1, -1, false, true};
+const Magic ID63{63, Tier(-0, -0, -3, -2), 17, -1, -1, false, true};
+const Magic ID64{64, Tier(-0, -0, -2, -3), 18, -1, -1, false, true};
+const Magic ID65{65, Tier(-0, -0, -0, -5), 20, -1, -1, false, true};
+const Magic ID66{66, Tier(-2, -1, -0, -1), 9, -1, -1, false, true};
+const Magic ID67{67, Tier(-0, -2, -1, -1), 12, -1, -1, false, true};
+const Magic ID68{68, Tier(-1, -0, -2, -1), 12, -1, -1, false, true};
+const Magic ID69{69, Tier(-2, -2, -2, -0), 13, -1, -1, false, true};
+const Magic ID70{70, Tier(-2, -2, -0, -2), 15, -1, -1, false, true};
+const Magic ID71{71, Tier(-2, -0, -2, -2), 17, -1, -1, false, true};
+const Magic ID72{72, Tier(-0, -2, -2, -2), 19, -1, -1, false, true};
+const Magic ID73{73, Tier(-1, -1, -1, -1), 12, -1, -1, false, true};
+const Magic ID74{74, Tier(-3, -1, -1, -1), 14, -1, -1, false, true};
+const Magic ID75{75, Tier(-1, -3, -1, -1), 16, -1, -1, false, true};
+const Magic ID76{76, Tier(-1, -1, -3, -1), 18, -1, -1, false, true};
+const Magic ID77{77, Tier(-1, -1, -1, -3), 20, -1, -1, false, true};
+
+const std::array<Magic, 42> LearnSpell = {ID00, ID01, ID02, ID03, ID04, ID05, ID06, ID07, ID08, ID09, ID10, ID11, ID12, ID13, ID14, ID15, ID16, ID17, ID18, ID19, ID20, ID21, ID22, ID23, ID24, ID25, ID26, ID27, ID28, ID29, ID30, ID31, ID32, ID33, ID34, ID35, ID36, ID37, ID38, ID39, ID40, ID41};
+const std::array<Magic, 42 + 4> CastSpell = {ID00, ID01, ID02, ID03, ID04, ID05, ID06, ID07, ID08, ID09, ID10, ID11, ID12, ID13, ID14, ID15, ID16, ID17, ID18, ID19, ID20, ID21, ID22, ID23, ID24, ID25, ID26, ID27, ID28, ID29, ID30, ID31, ID32, ID33, ID34, ID35, ID36, ID37, ID38, ID39, ID40, ID41, ID78, ID79, ID80, ID81};
+const std::array<Magic, 36> BrewPostion = {ID42, ID43, ID44, ID45, ID46, ID47, ID48, ID49, ID50, ID51, ID52, ID53, ID54, ID55, ID56, ID57, ID58, ID59, ID60, ID61, ID62, ID63, ID64, ID65, ID66, ID67, ID68, ID69, ID70, ID71, ID72, ID73, ID74, ID75, ID76, ID77};
+
+const std::map<Tier, size_t> LearnSpellMap{
+	std::make_pair(ID00.delta, 0),
+	std::make_pair(ID01.delta, 1),
+	std::make_pair(ID02.delta, 2),
+	std::make_pair(ID03.delta, 3),
+	std::make_pair(ID04.delta, 4),
+	std::make_pair(ID05.delta, 5),
+	std::make_pair(ID06.delta, 6),
+	std::make_pair(ID07.delta, 7),
+	std::make_pair(ID08.delta, 8),
+	std::make_pair(ID09.delta, 9),
+	std::make_pair(ID10.delta, 10),
+	std::make_pair(ID11.delta, 11),
+	std::make_pair(ID12.delta, 12),
+	std::make_pair(ID13.delta, 13),
+	std::make_pair(ID14.delta, 14),
+	std::make_pair(ID15.delta, 15),
+	std::make_pair(ID16.delta, 16),
+	std::make_pair(ID17.delta, 17),
+	std::make_pair(ID18.delta, 18),
+	std::make_pair(ID19.delta, 19),
+	std::make_pair(ID20.delta, 20),
+	std::make_pair(ID21.delta, 21),
+	std::make_pair(ID22.delta, 22),
+	std::make_pair(ID23.delta, 23),
+	std::make_pair(ID24.delta, 24),
+	std::make_pair(ID25.delta, 25),
+	std::make_pair(ID26.delta, 26),
+	std::make_pair(ID27.delta, 27),
+	std::make_pair(ID28.delta, 28),
+	std::make_pair(ID29.delta, 29),
+	std::make_pair(ID30.delta, 30),
+	std::make_pair(ID31.delta, 31),
+	std::make_pair(ID32.delta, 32),
+	std::make_pair(ID33.delta, 33),
+	std::make_pair(ID34.delta, 34),
+	std::make_pair(ID35.delta, 35),
+	std::make_pair(ID36.delta, 36),
+	std::make_pair(ID37.delta, 37),
+	std::make_pair(ID38.delta, 38),
+	std::make_pair(ID39.delta, 39),
+	std::make_pair(ID40.delta, 40),
+	std::make_pair(ID41.delta, 41)};
+
+const std::map<Tier, size_t> CastSpellMap{
+	std::make_pair(ID00.delta, 0),
+	std::make_pair(ID01.delta, 1),
+	std::make_pair(ID02.delta, 2),
+	std::make_pair(ID03.delta, 3),
+	std::make_pair(ID04.delta, 4),
+	std::make_pair(ID05.delta, 5),
+	std::make_pair(ID06.delta, 6),
+	std::make_pair(ID07.delta, 7),
+	std::make_pair(ID08.delta, 8),
+	std::make_pair(ID09.delta, 9),
+	std::make_pair(ID10.delta, 10),
+	std::make_pair(ID11.delta, 11),
+	std::make_pair(ID12.delta, 12),
+	std::make_pair(ID13.delta, 13),
+	std::make_pair(ID14.delta, 14),
+	std::make_pair(ID15.delta, 15),
+	std::make_pair(ID16.delta, 16),
+	std::make_pair(ID17.delta, 17),
+	std::make_pair(ID18.delta, 18),
+	std::make_pair(ID19.delta, 19),
+	std::make_pair(ID20.delta, 20),
+	std::make_pair(ID21.delta, 21),
+	std::make_pair(ID22.delta, 22),
+	std::make_pair(ID23.delta, 23),
+	std::make_pair(ID24.delta, 24),
+	std::make_pair(ID25.delta, 25),
+	std::make_pair(ID26.delta, 26),
+	std::make_pair(ID27.delta, 27),
+	std::make_pair(ID28.delta, 28),
+	std::make_pair(ID29.delta, 29),
+	std::make_pair(ID30.delta, 30),
+	std::make_pair(ID31.delta, 31),
+	std::make_pair(ID32.delta, 32),
+	std::make_pair(ID33.delta, 33),
+	std::make_pair(ID34.delta, 34),
+	std::make_pair(ID35.delta, 35),
+	std::make_pair(ID36.delta, 36),
+	std::make_pair(ID37.delta, 37),
+	std::make_pair(ID38.delta, 38),
+	std::make_pair(ID39.delta, 39),
+	std::make_pair(ID40.delta, 40),
+	std::make_pair(ID41.delta, 41),
+
+	std::make_pair(ID78.delta, 42),
+	std::make_pair(ID79.delta, 43),
+	std::make_pair(ID80.delta, 44),
+	std::make_pair(ID81.delta, 45),
+};
+
+const std::map<Tier, size_t> BrewPotionMap{
+	std::make_pair(ID42.delta, 0),
+	std::make_pair(ID43.delta, 1),
+	std::make_pair(ID44.delta, 2),
+	std::make_pair(ID45.delta, 3),
+	std::make_pair(ID46.delta, 4),
+	std::make_pair(ID47.delta, 5),
+	std::make_pair(ID48.delta, 6),
+	std::make_pair(ID49.delta, 7),
+	std::make_pair(ID50.delta, 8),
+	std::make_pair(ID51.delta, 9),
+	std::make_pair(ID52.delta, 10),
+	std::make_pair(ID53.delta, 11),
+	std::make_pair(ID54.delta, 12),
+	std::make_pair(ID55.delta, 13),
+	std::make_pair(ID56.delta, 14),
+	std::make_pair(ID57.delta, 15),
+	std::make_pair(ID58.delta, 16),
+	std::make_pair(ID59.delta, 17),
+	std::make_pair(ID60.delta, 18),
+	std::make_pair(ID61.delta, 19),
+	std::make_pair(ID62.delta, 20),
+	std::make_pair(ID63.delta, 21),
+	std::make_pair(ID64.delta, 22),
+	std::make_pair(ID65.delta, 23),
+	std::make_pair(ID66.delta, 24),
+	std::make_pair(ID67.delta, 25),
+	std::make_pair(ID68.delta, 26),
+	std::make_pair(ID69.delta, 27),
+	std::make_pair(ID70.delta, 28),
+	std::make_pair(ID71.delta, 29),
+	std::make_pair(ID72.delta, 30),
+	std::make_pair(ID73.delta, 31),
+	std::make_pair(ID74.delta, 32),
+	std::make_pair(ID75.delta, 33),
+	std::make_pair(ID76.delta, 34),
+	std::make_pair(ID77.delta, 35)};
 
 #pragma endregion
 
@@ -499,6 +823,7 @@ public:
 			}
 			else if (actionType == Object::RoundActionLearn)
 			{
+				magic.taxCount = std::min(magic.taxCount, 0x000f);
 				share.learns.push_back(magic);
 			}
 			else if (actionType == Object::RoundActionBrew)
@@ -700,19 +1025,6 @@ public:
 	static CommandPack Wait() { return CommandPack(Operation::Wait); }
 };
 
-template <size_t Length>
-struct Data
-{
-	Tier inventory;
-	std::vector<Magic> learns;
-	std::vector<Magic> brews;
-	std::vector<Magic> casts;
-	std::array<CommandPack, Length> commands;
-	double score = 0;
-	int price = 0;
-	int castCount = 0;
-};
-
 class Simulator
 {
 private:
@@ -725,10 +1037,21 @@ private:
 	static const int SearchTurn = 20;
 	static const int ChokudaiWidth = 3;
 
-	using DataPack = std::shared_ptr<Data<SearchTurn>>;
+	using MagicList = std::array<short, std::max(LearnSpell.size(), std::max(CastSpell.size(), BrewPostion.size()))>;
 
-	int popCount;
-	int pushCount;
+	template <size_t Length>
+	struct Data
+	{
+		Tier inventory;
+		MagicList magicList;
+		std::array<CommandPack, Length> commands;
+		double score = 0;
+		int price = 0;
+		int castCount = 0;
+	};
+
+	using DataPack = Data<SearchTurn> *;
+	using Pool = MemoryPool<Data<SearchTurn>, (1 << 18)>;
 
 	struct DataLess
 	{
@@ -746,8 +1069,7 @@ private:
 
 	using PriorityQueue = std::priority_queue<DataPack, std::vector<DataPack>, DataLess>;
 
-	//6 LEARN [2 1 -2 1] 0 5 0 0 1
-	//78 CAST [2 0 0 0] 0 -1 -1 1 0
+	std::array<int, CastSpell.size()> convertCastActionId;
 
 	Magic learn2cast(const Magic &learn) const
 	{
@@ -757,16 +1079,107 @@ private:
 		cast.taxCount = -1;
 		cast.castable = true;
 
-		if (cast.delta.tier0 < 0 || cast.delta.tier1 < 0 || cast.delta.tier2 < 0 || cast.delta.tier3 < 0)
-		{
-			cast.repeatable = true;
-		}
-		else
-		{
-			cast.repeatable = false;
-		}
+		cast.repeatable = LearnSpell[learn.actionId].repeatable;
 
 		return cast;
+	}
+
+	MagicList::value_type convertTomeIndex(const int tomeIndex) const
+	{
+		return static_cast<MagicList::value_type>((tomeIndex & 0x000F) << 12);
+	}
+	int getTomeIndex(const MagicList::value_type &magic) const
+	{
+		return ((magic & 0xF000) >> 12);
+	}
+	MagicList::value_type convertTaxCount(const int taxCount) const
+	{
+		return static_cast<MagicList::value_type>((taxCount & 0x000F) << 8);
+	}
+	int getTaxCount(const MagicList::value_type &magic) const
+	{
+		return ((magic & 0x0F00) >> 8);
+	}
+	MagicList::value_type convertLearnAvailable() const
+	{
+		return static_cast<MagicList::value_type>(0x0001 << 6);
+	}
+	bool getLearnAvailable(const MagicList::value_type &magic) const
+	{
+		return ((magic & 0x0040) >> 6);
+	}
+
+	MagicList::value_type convertBrewAvailable() const
+	{
+		return static_cast<MagicList::value_type>(0x0001 << 2);
+	}
+	bool getBrewAvailable(const MagicList::value_type &magic) const
+	{
+		return ((magic & 0x0004) >> 2);
+	}
+
+	MagicList::value_type convertCastCastable(const bool castable) const
+	{
+		return static_cast<MagicList::value_type>(castable << 1);
+	}
+	bool getCastCastable(const MagicList::value_type &magic) const
+	{
+		return ((magic & 0x0002) >> 1);
+	}
+	MagicList::value_type convertCastAvailable() const
+	{
+		return static_cast<MagicList::value_type>(0x0001);
+	}
+	bool getCastAvailable(const MagicList::value_type &magic) const
+	{
+		return (magic & 0x0001);
+	}
+
+	bool getCastable(const MagicList::value_type &magic) const
+	{
+		return ((magic & 0b11) == 0b11);
+	}
+
+	MagicList convertInputData()
+	{
+		const auto &share = Share::Get();
+
+		const auto &learns = share.getLearns();
+		const auto &brews = share.getBrews();
+		const auto &casts = share.getCasts();
+
+		MagicList magicList;
+		magicList.fill(0);
+
+		//0b 0000 0000 00 00 00 00
+		//      |    | || || || |+Cast:Available(0x0001)
+		//      |    | || || || +Cast:Castable(0x0001 << 1)
+		//      |    | || || |+Brew:Available(0x0001 << 2)
+		//      |    | || || +Brew:None
+		//      |    | || ++None:None
+		//      |    | |+Learn:Available(0x0001 << 6)
+		//      |    | +Learn:None
+		//      |    +Learn:Tax(0x000F << 8)
+		//      +Learn:Index(0x000F << 12)
+
+		for (const auto &learn : learns)
+		{
+			const auto idx = LearnSpellMap.at(learn.delta);
+			magicList[idx] |= convertTomeIndex(learn.tomeIndex) | convertTaxCount(learn.taxCount) | convertLearnAvailable();
+		}
+		for (const auto &brew : brews)
+		{
+			const auto idx = BrewPotionMap.at(brew.delta);
+			magicList[idx] |= convertBrewAvailable();
+		}
+		for (const auto &cast : casts)
+		{
+			const auto idx = CastSpellMap.at(cast.delta);
+			magicList[idx] |= convertCastCastable(cast.castable) | convertCastAvailable();
+			convertCastActionId[idx] = cast.actionId;
+		}
+
+		return magicList;
 	}
 
 	void setLearn(std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
@@ -777,76 +1190,70 @@ private:
 			{
 				const auto top = chokudaiSearch[turn].top();
 				chokudaiSearch[turn].pop();
-				popCount++;
 
-				//スペル取得
-				for (const auto &learn : top->learns)
+				forange(i, top->magicList.size())
 				{
-					if (top->inventory.tier0 >= learn.tomeIndex)
+					const auto &magic = top->magicList[i];
+
+					//スペル取得
+					if (getLearnAvailable(magic))
 					{
-						DataPack next = std::make_shared<DataPack::element_type>();
-
-						(*next) = (*top);
-						next->inventory.tier0 -= learn.tomeIndex;
-						next->inventory.tier0 += learn.taxCount;
-						next->inventory.setSum();
-						const int sum = next->inventory.getSum();
-						if (sum > Object::InventorySize)
+						if (top->inventory.tier0 >= LearnSpell[i].tomeIndex)
 						{
-							next->inventory.tier0 -= sum - Object::InventorySize;
-						}
+							DataPack next = new (Pool::instance->get()) Data<SearchTurn>(*top);
 
-						//TODO:LEARNからCASTへの変換機構を作成する
-						next->casts.push_back(learn2cast(learn));
+							next->magicList[i] |= convertCastCastable(true);
+							next->magicList[i] |= convertCastAvailable();
+							next->magicList[i] &= ~convertLearnAvailable();
 
-						next->commands[turn] = CommandPack::Learn(learn.actionId);
-
-						chokudaiSearch[turn + 1].push(next);
-						pushCount++;
-					}
-				}
-
-				//tier0キャスト
-				for (auto &cast : top->casts)
-				{
-					if (cast.castable)
-					{
-						if (cast.delta.tier0 > 0)
-						{
-							if (top->inventory.isAccept(cast.delta))
+							next->inventory.tier0 -= getTomeIndex(magic);
+							next->inventory.tier0 += getTaxCount(magic);
+							next->inventory.setSum();
+							const int sum = next->inventory.getSum();
+							if (sum > Object::InventorySize)
 							{
-								DataPack next = std::make_shared<DataPack::element_type>();
+								next->inventory.tier0 -= sum - Object::InventorySize;
+							}
 
-								cast.castable = false;
-								(*next) = (*top);
-								cast.castable = true;
+							next->commands[turn] = CommandPack::Learn(LearnSpell[i].actionId);
 
-								next->inventory += cast.delta;
+							chokudaiSearch[turn + 1].push(next);
+						}
+					}
+
+					//tier0キャスト
+					if (getCastable(magic))
+					{
+						if (CastSpell[i].delta.tier0 > 0)
+						{
+							if (top->inventory.isAccept(CastSpell[i].delta))
+							{
+								DataPack next = new (Pool::instance->get()) Data<SearchTurn>(*top);
+
+								next->magicList[i] &= ~convertCastAvailable();
+
+								next->inventory += CastSpell[i].delta;
 
 								next->castCount += 1;
 
-								next->commands[turn] = CommandPack::Cast(cast.actionId);
+								next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[i].actionId]);
 
 								chokudaiSearch[turn + 1].push(next);
-								pushCount++;
 
-								if (cast.repeatable)
+								if (CastSpell[i].repeatable)
 								{
 									int times = 2;
 									auto inv = next->inventory;
-									while (inv.isAccept(cast.delta))
+									while (inv.isAccept(CastSpell[i].delta))
 									{
-										DataPack next2 = std::make_shared<DataPack::element_type>();
+										DataPack next2 = new (Pool::instance->get()) Data<SearchTurn>(*next);
 
-										(*next2) = (*next);
-
-										inv += cast.delta;
+										inv += CastSpell[i].delta;
 										next->inventory = inv;
 
-										next->commands[turn] = CommandPack::Cast(cast.actionId, times);
+										next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[i].actionId], times);
 
 										chokudaiSearch[turn + 1].push(next);
-										pushCount++;
 
 										times++;
 									}
@@ -855,33 +1262,34 @@ private:
 						}
 					}
 				}
+
+				Pool::instance->release(top);
 			}
 		}
 	}
 
 public:
+	AI()
+	{
+		Pool::Create();
+		convertCastActionId.fill(-1);
+	}
+
 	std::string think()
 	{
+		Pool::instance->clear();
+
 		const auto &share = Share::Get();
 
 		const auto &inv = share.getInventory();
 
-		const auto &learns = share.getLearns();
-		const auto &brews = share.getBrews();
-		const auto &casts = share.getCasts();
-
-		popCount = 0;
-		pushCount = 0;
-
 		std::array<PriorityQueue, SearchTurn + 1> chokudaiSearch;
 		{
-			DataPack init = std::make_shared<DataPack::element_type>();
-			DataPack init2 = std::make_shared<DataPack::element_type>();
+			DataPack init = new (Pool::instance->get()) Data<SearchTurn>();
+			DataPack init2 = new (Pool::instance->get()) Data<SearchTurn>();
 
 			init->inventory = inv.inv;
-			init->learns = learns;
-			init->brews = brews;
-			init->casts = casts;
+			init->magicList = convertInputData();
 
 			(*init2) = (*init);
 
@@ -902,74 +1310,63 @@ public:
 				forange(w, ChokudaiWidth)
 				{
 					if (chokudaiSearch[turn].empty())
-						continue;
+						break;
 
 					const auto top = chokudaiSearch[turn].top();
 					chokudaiSearch[turn].pop();
-					popCount++;
 
-					for (auto &brew : top->brews)
+					forange(i, top->magicList.size())
 					{
-						if (brew.castable)
+						const auto &magic = top->magicList[i];
+
+						if (getBrewAvailable(magic))
 						{
-							if (top->inventory.isAccept(brew.delta))
+							if (top->inventory.isAccept(BrewPostion[i].delta))
 							{
-								DataPack next = std::make_shared<DataPack::element_type>();
+								DataPack next = new (Pool::instance->get()) Data<SearchTurn>(*top);
 
-								brew.castable = false;
-								(*next) = (*top);
-								brew.castable = true;
+								next->magicList[i] &= ~convertBrewAvailable();
 
-								next->inventory += brew.delta;
+								next->inventory += BrewPostion[i].delta;
 
-								next->price += brew.price;
+								next->price += BrewPostion[i].price;
 
-								next->commands[turn] = CommandPack::Brew(brew.actionId);
+								next->commands[turn] = CommandPack::Brew(BrewPostion[i].actionId);
 
 								chokudaiSearch[turn + 1].push(next);
-								pushCount++;
 							}
 						}
-					}
 
-					for (auto &cast : top->casts)
-					{
-						if (cast.castable)
+						if (getCastable(magic))
 						{
-							if (top->inventory.isAccept(cast.delta))
+							if (top->inventory.isAccept(CastSpell[i].delta))
 							{
-								DataPack next = std::make_shared<DataPack::element_type>();
+								DataPack next = new (Pool::instance->get()) Data<SearchTurn>(*top);
 
-								cast.castable = false;
-								(*next) = (*top);
-								cast.castable = true;
+								next->magicList[i] &= ~convertCastCastable(magic);
 
-								next->inventory += cast.delta;
+								next->inventory += CastSpell[i].delta;
 
 								next->castCount += 1;
 
-								next->commands[turn] = CommandPack::Cast(cast.actionId);
+								next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[i].actionId]);
 
 								chokudaiSearch[turn + 1].push(next);
-								pushCount++;
 
-								if (cast.repeatable)
+								if (CastSpell[i].repeatable)
 								{
 									int times = 2;
 									auto inv = next->inventory;
-									while (inv.isAccept(cast.delta))
+									while (inv.isAccept(CastSpell[i].delta))
 									{
-										DataPack next2 = std::make_shared<DataPack::element_type>();
+										DataPack next2 = new (Pool::instance->get()) Data<SearchTurn>(*next);
 
-										(*next2) = (*next);
-
-										inv += cast.delta;
+										inv += CastSpell[i].delta;
 										next->inventory = inv;
 
-										next->commands[turn] = CommandPack::Cast(cast.actionId, times);
+										next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[i].actionId], times);
 
 										chokudaiSearch[turn + 1].push(next);
-										pushCount++;
 
 										times++;
 									}
@@ -979,20 +1376,20 @@ public:
 					}
 
 					{
-						DataPack next = std::make_shared<DataPack::element_type>();
+						DataPack next = new (Pool::instance->get()) Data<SearchTurn>(*top);
 
-						(*next) = (*top);
-
-						for (auto &cast : next->casts)
+						for (auto &magic : next->magicList)
 						{
-							cast.castable = true;
+							if (getCastAvailable(magic))
+								magic |= convertCastCastable(magic);
 						}
 
 						next->commands[turn] = CommandPack::Rest();
 
 						chokudaiSearch[turn + 1].push(next);
-						pushCount++;
 					}
+
+					Pool::instance->release(top);
 				}
 			}
 		}
@@ -1006,7 +1403,7 @@ public:
 		{
 			const auto top = chokudaiSearch.back().top();
 			const auto com = top->commands.front().getCommand();
-			const auto mes = "pu:" + std::to_string(pushCount) + "\tpo:" + std::to_string(popCount);
+			const auto mes = "mes";
 
 			return com + " " + mes;
 		}
