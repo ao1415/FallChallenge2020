@@ -1198,7 +1198,7 @@ private:
 					//ƒXƒyƒ‹Žæ“¾
 					if (getLearnAvailable(magic))
 					{
-						if (top->inventory.tier0 >= LearnSpell[i].tomeIndex)
+						if (top->inventory.tier0 >= getTomeIndex(magic))
 						{
 							DataPack next = new (Pool::instance->get()) Data<SearchTurn>(*top);
 
@@ -1302,6 +1302,8 @@ public:
 
 		MilliSecTimer timer(std::chrono::milliseconds(20));
 
+		int loopCount = 0;
+
 		timer.start();
 		while (!timer)
 		{
@@ -1311,7 +1313,7 @@ public:
 				{
 					if (chokudaiSearch[turn].empty())
 						break;
-
+					loopCount++;
 					const auto top = chokudaiSearch[turn].top();
 					chokudaiSearch[turn].pop();
 
@@ -1403,7 +1405,7 @@ public:
 		{
 			const auto top = chokudaiSearch.back().top();
 			const auto com = top->commands.front().getCommand();
-			const auto mes = "mes";
+			const auto mes = "loop:" + std::to_string(loopCount);
 
 			return com + " " + mes;
 		}
@@ -1436,7 +1438,7 @@ int main()
 
 		std::cerr << sw.toString_ms() << std::endl;
 
-		std::cout << coms << std::endl;
+		std::cout << coms << " " << sw.toString_ms() << std::endl;
 	}
 
 	return 0;
