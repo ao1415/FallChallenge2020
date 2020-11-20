@@ -15,6 +15,7 @@
 
 #include <iostream>
 #include <string>
+#include <sstream>
 
 #include <vector>
 #include <array>
@@ -780,8 +781,11 @@ public:
 		auto &share = Share::Get();
 
 		int actionCount; // the number of spells and recipes in play
-		actionCount = read<decltype(actionCount)>();
-		ignore();
+		{
+			std::stringstream ss(readLine());
+			ss >> actionCount;
+			//ignore();
+		}
 
 		share.casts.clear();
 		share.opponentCasts.clear();
@@ -792,26 +796,35 @@ public:
 			decltype(share.brews)::value_type magic;
 			std::string actionType;
 
-			magic.actionId = read<decltype(magic.actionId)>(); // the unique ID of this spell or recipe
-			actionType = read<decltype(actionType)>();		   // CAST, OPPONENT_CAST, LEARN, BREW
+			std::stringstream ss(readLine());
+			//ignore();
 
-			magic.delta.tier0 = static_cast<decltype(magic.delta.tier0)>(read<int>()); // tier-0 ingredient change
-			magic.delta.tier1 = static_cast<decltype(magic.delta.tier1)>(read<int>()); // tier-1 ingredient change
-			magic.delta.tier2 = static_cast<decltype(magic.delta.tier2)>(read<int>()); // tier-2 ingredient change
-			magic.delta.tier3 = static_cast<decltype(magic.delta.tier3)>(read<int>()); // tier-3 ingredient change
+			int tier0, tier1, tier2, tier3;
+			int castable, repeatable;
+
+			ss >> magic.actionId // the unique ID of this spell or recipe
+				>> actionType	 // CAST, OPPONENT_CAST, LEARN, BREW
+
+				>> tier0 // tier-0 ingredient change
+				>> tier1 // tier-1 ingredient change
+				>> tier2 // tier-2 ingredient change
+				>> tier3 // tier-3 ingredient change
+
+				>> magic.price	   // the price in rupees if this is a potion
+				>> magic.tomeIndex // the index in the tome if this is a tome spell, equal to the read-ahead tax
+				>> magic.taxCount  // the amount of taxed tier-0 ingredients you gain from learning this spell
+				>> castable		   // 1 if this is a castable player spell
+				>> repeatable;	   // 1 if this is a repeatable player spell
+
+			magic.delta.tier0 = static_cast<decltype(magic.delta.tier0)>(tier0);
+			magic.delta.tier1 = static_cast<decltype(magic.delta.tier1)>(tier1);
+			magic.delta.tier2 = static_cast<decltype(magic.delta.tier2)>(tier2);
+			magic.delta.tier3 = static_cast<decltype(magic.delta.tier3)>(tier3);
 			magic.delta.setSum();
 
-			magic.price = read<decltype(magic.price)>();		 // the price in rupees if this is a potion
-			magic.tomeIndex = read<decltype(magic.tomeIndex)>(); // the index in the tome if this is a tome spell, equal to the read-ahead tax
-			magic.taxCount = read<decltype(magic.taxCount)>();	 // the amount of taxed tier-0 ingredients you gain from learning this spell
+			magic.castable = (0 < castable);
 
-			int castable = read<decltype(castable)>();
-			magic.castable = (0 < castable); // 1 if this is a castable player spell
-
-			int repeatable = read<decltype(repeatable)>();
-			magic.repeatable = (0 < repeatable); // 1 if this is a repeatable player spell
-
-			ignore();
+			magic.repeatable = (0 < repeatable);
 
 			if (actionType == Object::RoundActionCast)
 			{
@@ -836,29 +849,43 @@ public:
 		{
 			auto &inv = share.inventory;
 
-			inv.inv.tier0 = static_cast<decltype(inv.inv.tier0)>(read<int>()); // tier-0 ingredients in inventory
-			inv.inv.tier1 = static_cast<decltype(inv.inv.tier1)>(read<int>()); // tier-1 ingredients in inventory
-			inv.inv.tier2 = static_cast<decltype(inv.inv.tier2)>(read<int>()); // tier-2 ingredients in inventory
-			inv.inv.tier3 = static_cast<decltype(inv.inv.tier3)>(read<int>()); // tier-3 ingredients in inventory
+			std::stringstream ss(readLine());
+			//ignore();
+
+			int tier0, tier1, tier2, tier3;
+
+			ss >> tier0		  // tier-0 ingredients in inventory
+				>> tier1	  // tier-1 ingredients in inventory
+				>> tier2	  // tier-2 ingredients in inventory
+				>> tier3	  // tier-3 ingredients in inventory
+				>> inv.score; // amount of rupees
+
+			inv.inv.tier0 = static_cast<decltype(inv.inv.tier0)>(tier0);
+			inv.inv.tier1 = static_cast<decltype(inv.inv.tier1)>(tier1);
+			inv.inv.tier2 = static_cast<decltype(inv.inv.tier2)>(tier2);
+			inv.inv.tier3 = static_cast<decltype(inv.inv.tier3)>(tier3);
 			inv.inv.setSum();
-
-			inv.score = read<decltype(inv.score)>(); // amount of rupees
-
-			ignore();
 		}
 
 		{
 			auto &inv = share.opponentInventory;
 
-			inv.inv.tier0 = static_cast<decltype(inv.inv.tier0)>(read<int>()); // tier-0 ingredients in inventory
-			inv.inv.tier1 = static_cast<decltype(inv.inv.tier1)>(read<int>()); // tier-1 ingredients in inventory
-			inv.inv.tier2 = static_cast<decltype(inv.inv.tier2)>(read<int>()); // tier-2 ingredients in inventory
-			inv.inv.tier3 = static_cast<decltype(inv.inv.tier3)>(read<int>()); // tier-3 ingredients in inventory
+			std::stringstream ss(readLine());
+			//ignore();
+
+			int tier0, tier1, tier2, tier3;
+
+			ss >> tier0		  // tier-0 ingredients in inventory
+				>> tier1	  // tier-1 ingredients in inventory
+				>> tier2	  // tier-2 ingredients in inventory
+				>> tier3	  // tier-3 ingredients in inventory
+				>> inv.score; // amount of rupees
+
+			inv.inv.tier0 = static_cast<decltype(inv.inv.tier0)>(tier0);
+			inv.inv.tier1 = static_cast<decltype(inv.inv.tier1)>(tier1);
+			inv.inv.tier2 = static_cast<decltype(inv.inv.tier2)>(tier2);
+			inv.inv.tier3 = static_cast<decltype(inv.inv.tier3)>(tier3);
 			inv.inv.setSum();
-
-			inv.score = read<decltype(inv.score)>(); // amount of rupees
-
-			ignore();
 		}
 	}
 };
