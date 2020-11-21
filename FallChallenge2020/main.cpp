@@ -944,7 +944,7 @@ class CommandPack
 private:
 	Object::Operation operation = Object::Operation::Wait;
 	unsigned char actionId = 0;
-	unsigned char times = 0;
+	unsigned char times = 1;
 
 	CommandPack(const Object::Operation operation)
 		: CommandPack(operation, 0, 0) {}
@@ -963,10 +963,7 @@ public:
 		case Object::Operation::Brew:
 			return CommandBrew(actionId);
 		case Object::Operation::Cast:
-			if (times > 0)
-				return CommandCast(actionId, times);
-			else
-				return CommandCast(actionId);
+			return CommandCast(actionId, times);
 		case Object::Operation::Learn:
 			return CommandLearn(actionId);
 		case Object::Operation::Rest:
@@ -996,10 +993,7 @@ public:
 		case Object::Operation::Brew:
 			return "B" + std::to_string(actionId);
 		case Object::Operation::Cast:
-			if (times > 0)
-				return "C" + std::to_string(actionId) + "-" + std::to_string(times);
-			else
-				return "C" + std::to_string(actionId);
+			return "" + std::to_string(actionId) + (times == 1 ? "" : std::to_string(times));
 		case Object::Operation::Learn:
 			return "L" + std::to_string(actionId);
 		case Object::Operation::Rest:
@@ -1484,7 +1478,7 @@ private:
 
 				next->inventory += CastSpell[castIndex].delta;
 
-				next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId]);
+				next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], 1);
 
 				next->score = evaluate(turn, next, Object::Operation::Cast, magic, castIndex);
 
@@ -1521,19 +1515,11 @@ private:
 
 				next->magicList[castIndex].setCastCastable(false);
 
-				if (times > 1)
-				{
-					forange(t, times)
-					{
-						next->inventory += CastSpell[castIndex].delta;
-					}
-					next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], times);
-				}
-				else
+				forange(t, times)
 				{
 					next->inventory += CastSpell[castIndex].delta;
-					next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId]);
 				}
+				next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], times);
 
 				next->score = evaluate(turn, next, Object::Operation::Cast, magic, castIndex);
 
@@ -1669,13 +1655,13 @@ public:
 		timer.start();
 		while (!timer)
 		{
+			loopCount++;
 			forange(turn, SearchTurn)
 			{
 				forange(w, ChokudaiWidth)
 				{
 					if (chokudaiSearch[turn].empty())
 						break;
-					loopCount++;
 					const auto top = chokudaiSearch[turn].top();
 					chokudaiSearch[turn].pop();
 
@@ -1713,6 +1699,7 @@ public:
 			}
 
 			debugMes += "P" + std::to_string(topData.price);
+			debugMes += " L" + std::to_string(loopCount);
 
 			return com + " " + debugMes;
 		}
