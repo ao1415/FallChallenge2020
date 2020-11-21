@@ -359,6 +359,7 @@ namespace Object
 	const std::string RoundActionWait = "WAIT";
 
 	const int InventorySize = 10;
+	const int PotionLimit = 6;
 
 	enum class Operation : char
 	{
@@ -1352,6 +1353,11 @@ private:
 		{
 		case Object::Operation::Brew:
 			score += BrewPostion[index].price;
+
+			if (data->brewCount >= Object::PotionLimit)
+			{
+				score += data->inventory.getScore();
+			}
 			break;
 		case Object::Operation::Cast:
 			score += 1.0;
@@ -1371,10 +1377,10 @@ private:
 
 		//経過ターンによる補正
 		score = (score * evaluateExp[turn]);
-		
+
 		//乱数によるブレ
 		score = score * SearchTurn + xoshiro.nextDouble();
-		
+
 		return topScore + score;
 	}
 
@@ -1530,7 +1536,14 @@ private:
 
 				next->score = evaluate(turn, next, Object::Operation::Brew, magic, potionIndex);
 
-				chokudaiSearch[turn + 1].push(next);
+				if (next->brewCount < Object::PotionLimit)
+				{
+					chokudaiSearch[turn + 1].push(next);
+				}
+				else
+				{
+					chokudaiSearch[SearchTurn].push(next);
+				}
 			}
 		}
 	}
@@ -1582,6 +1595,16 @@ private:
 			}
 		}
 	}
+	/**
+	 * @brief 素材変換
+	 * 
+	 * @param castIndex スペル番号
+	 * @param times スペル繰返回数
+	 * @param magic スペル付加情報
+	 * @param turn 探査ターン
+	 * @param top 探査ノード
+	 * @param chokudaiSearch 探査キュー配列
+	 */
 	void searchCast(const size_t castIndex, const int times, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
 	{
 		if (magic.getCastable())
@@ -1770,13 +1793,17 @@ public:
 
 			std::string debugMes = "";
 
-			forange(i, std::min(10, SearchTurn))
+			int setTurn = 0;
+			forange(i, topData.commands.size())
 			{
-				debugMes += topData.commands[i].debugMessage() + " ";
+				if (topData.commands[i].getOperation() == Object::Operation::Brew)
+				{
+					debugMes += topData.commands[i].debugMessage() + "@" + std::to_string(setTurn) + " ";
+				}
+				setTurn++;
 			}
 
-			debugMes += "P" + std::to_string(topData.price);
-			debugMes += " L" + std::to_string(loopCount);
+			debugMes += "P" + std::to_string(topData.price) + "," + std::to_string(loopCount);
 
 			return com + " " + debugMes;
 		}
