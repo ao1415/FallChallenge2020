@@ -588,6 +588,8 @@ private:
 
 	int turn = 0;
 
+	Object::Operation opponentOperation = Object::Operation::Wait;
+
 public:
 	friend Input;
 
@@ -662,6 +664,13 @@ public:
 	 * @return const auto 進行ターン数
 	 */
 	const auto getTurn() const { return turn; }
+
+	/**
+	 * @brief 相手の使用スペル取得
+	 * 
+	 * @return const auto 相手の使用スペル
+	 */
+	const auto getOpponentOperation() const { return opponentOperation; }
 };
 
 #pragma endregion
@@ -721,6 +730,8 @@ public:
 			//ignore();
 		}
 
+		const auto opponentCastsSize = share.opponentCasts.size();
+
 		share.casts.clear();
 		share.opponentCasts.clear();
 		share.learns.clear();
@@ -779,6 +790,22 @@ public:
 			}
 		}
 
+		share.opponentOperation = Object::Operation::Cast;
+		if (share.opponentCasts.size() != opponentCastsSize)
+		{
+			share.opponentOperation = Object::Operation::Learn;
+		}
+		// const auto brewMatch = std::count_if(share.brews.begin(),share.brews.end(),[&](const Magic& brew){
+		// 	return std::any_of(bBrews.begin(), bBrews.end(), [&](const Magic& bBrew) {
+		// 		return bBrew.actionId == brew.actionId;
+		// 	});
+		// });
+		// const auto learnMatch = std::count_if(share.learns.cbegin(),share.learns.cend(),[&](const Magic& learn){
+		// 	return std::any_of(bLearns.cbegin(), bLearns.cend(), [&](const Magic& bLearn) {
+		// 		return bLearn.actionId == learn.actionId;
+		// 	});
+		// });
+
 		{
 			auto &inv = share.inventory;
 
@@ -828,6 +855,8 @@ public:
 			{
 				inv.score = price;
 				share.opponentBrewCount++;
+
+				share.opponentOperation = Object::Operation::Brew;
 			}
 		}
 	}
@@ -948,6 +977,11 @@ public:
 	Object::Operation getOperation() const
 	{
 		return operation;
+	}
+
+	std::tuple<Object::Operation, unsigned char, unsigned char> getParam() const
+	{
+		return std::make_tuple(operation, actionId, times);
 	}
 
 	std::string debugMessage() const
@@ -1224,6 +1258,7 @@ private:
 
 	using DataPack = Data<SearchTurn> *;
 	using Pool = MemoryPool<Data<SearchTurn>, (1 << 18)>;
+	Data<SearchTurn> topData;
 
 	struct DataLess
 	{
@@ -1472,6 +1507,36 @@ private:
 			}
 		}
 	}
+	void searchCast(const size_t castIndex, const int times, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch) const
+	{
+		if (magic.getCastable())
+		{
+			if (top->inventory.isAccept(CastSpell[castIndex].delta))
+			{
+				DataPack next = new (Pool::instance->get()) Data<SearchTurn>(*top);
+
+				next->magicList[castIndex].setCastCastable(false);
+
+				if (times > 1)
+				{
+					forange(t, times)
+					{
+						next->inventory += CastSpell[castIndex].delta;
+					}
+					next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], times);
+				}
+				else
+				{
+					next->inventory += CastSpell[castIndex].delta;
+					next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId]);
+				}
+
+				next->score = evaluate(turn, next, Object::Operation::Cast, magic, castIndex);
+
+				chokudaiSearch[turn + 1].push(next);
+			}
+		}
+	}
 	/**
 	 * @brief 休憩
 	 *
@@ -1498,6 +1563,67 @@ private:
 		chokudaiSearch[turn + 1].push(next);
 	}
 
+	/**
+	 * @brief 前回の最善手をセットする
+	 * 
+	 * @param chokudaiSearch 
+	 */
+	void setLastCommand(std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
+	{
+		forange(turn, SearchTurn - 1)
+		{
+			if (chokudaiSearch[turn].empty())
+				break;
+
+			const auto top = chokudaiSearch[turn].top();
+			chokudaiSearch[turn].pop();
+
+			const auto [ope, id, times] = topData.commands[turn + 1].getParam();
+
+			switch (ope)
+			{
+			case Object::Operation::Brew:
+			{
+				const auto idx = id - BrewPostion.front().actionId;
+				searchBrew(idx, top->magicList[idx], turn, top, chokudaiSearch);
+			}
+			break;
+
+			case Object::Operation::Cast:
+			{
+				
+				const auto idx = [&](){
+					
+					forange (i, convertCastActionId.size())
+					{
+						if (convertCastActionId[i]==id)
+							return i;
+					}
+					return static_cast<size_t>(0);
+				}();
+				searchCast(idx, times, top->magicList[idx], turn, top, chokudaiSearch);
+			}
+			break;
+
+			case Object::Operation::Learn:
+			{
+				const auto idx = id;
+				searchLearn(idx, top->magicList[idx], turn, top, chokudaiSearch);
+			}
+			break;
+
+			case Object::Operation::Rest:
+				searchRest(turn, top, chokudaiSearch);
+				break;
+
+			default:
+				break;
+			}
+
+			Pool::instance->release(top);
+		}
+	}
+
 public:
 	AI()
 	{
@@ -1511,11 +1637,6 @@ public:
 
 		const auto &share = Share::Get();
 
-		//TODO:
-		//まず自分が10ターン回す(5ms)
-		//次に相手を10ターン回す(5ms)
-		//最後に相手の情報を受けて20ターン回す(30ms)
-
 		std::array<PriorityQueue, SearchTurn + 1> chokudaiSearch;
 		{
 			DataPack init = new (Pool::instance->get()) Data<SearchTurn>();
@@ -1527,7 +1648,14 @@ public:
 			init->bonus3 = brews[0].taxCount;
 			init->bonus1 = brews[1].taxCount;
 
+			DataPack init2 = new (Pool::instance->get()) Data<SearchTurn>(*init);
+
 			chokudaiSearch.front().push(init);
+			if (share.getOpponentOperation() == Object::Operation::Cast)
+			{
+				setLastCommand(chokudaiSearch);
+				chokudaiSearch.front().push(init);
+			}
 		}
 
 		MilliSecTimer timer(std::chrono::milliseconds(45));
@@ -1570,18 +1698,17 @@ public:
 		}
 		else
 		{
-			const auto top = chokudaiSearch.back().top();
-			const auto com = top->commands.front().getCommand();
+			topData = *chokudaiSearch.back().top();
+			const auto com = topData.commands.front().getCommand();
 
 			std::string debugMes = "";
 
 			forange(i, std::min(10, SearchTurn))
 			{
-				debugMes += top->commands[i].debugMessage() + " ";
+				debugMes += topData.commands[i].debugMessage() + " ";
 			}
 
-			debugMes += "P" + std::to_string(top->price);
-			//debugMes += "loop:" + std::to_string(loopCount);
+			debugMes += "P" + std::to_string(topData.price);
 
 			return com + " " + debugMes;
 		}
