@@ -38,6 +38,11 @@
 #define forange_type(type, counter, end) forstep_type(type, counter, 0, end)
 #define forstep_type(type, counter, begin, end) for (type counter = begin, forstep_type_end_##counter = end; counter < forstep_type_end_##counter; counter++)
 
+void errerLine(const std::string &mes)
+{
+	std::cerr << "@" << mes << std::endl;
+}
+
 /**
  * @brief 時間計測を行うクラス
  *
@@ -200,7 +205,7 @@ private:
 		uint64_t memorySize = sizeof(Type) * Size;
 		m_data = static_cast<Type *>(std::malloc(memorySize));
 
-		std::cerr << "Memory Size:" << memorySize / 1024.0 / 1024.0 << "MB" << std::endl;
+		errerLine("Memory Size:" + std::to_string(memorySize / 1024.0 / 1024.0) + "MB");
 	}
 
 public:
@@ -230,7 +235,7 @@ public:
 		{
 			if (unlikely(addr.empty()))
 			{
-				std::cerr << "MemoryPool out of range" << std::endl;
+				errerLine("MemoryPool out of range");
 				return nullptr;
 			}
 
@@ -660,14 +665,14 @@ public:
 
 	/**
 	 * @brief 進行ターン数取得
-	 * 
+	 *
 	 * @return const auto 進行ターン数
 	 */
 	const auto getTurn() const { return turn; }
 
 	/**
 	 * @brief 相手の使用スペル取得
-	 * 
+	 *
 	 * @return const auto 相手の使用スペル
 	 */
 	const auto getOpponentOperation() const { return opponentOperation; }
@@ -1335,7 +1340,7 @@ private:
 		{
 			const auto idx = BrewPotionMap.at(brews[i].delta);
 			magicList[idx].setBrewAvailable(true);
-			magicList[idx].setBrewIndex(i);
+			magicList[idx].setBrewIndex(static_cast<int>(i));
 		}
 		for (const auto &cast : casts)
 		{
@@ -1565,8 +1570,8 @@ private:
 
 	/**
 	 * @brief 前回の最善手をセットする
-	 * 
-	 * @param chokudaiSearch 
+	 *
+	 * @param chokudaiSearch
 	 */
 	void setLastCommand(std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
 	{
@@ -1591,12 +1596,11 @@ private:
 
 			case Object::Operation::Cast:
 			{
-				
-				const auto idx = [&](){
-					
-					forange (i, convertCastActionId.size())
+
+				const auto idx = [&]() {
+					forange(i, convertCastActionId.size())
 					{
-						if (convertCastActionId[i]==id)
+						if (convertCastActionId[i] == id)
 							return i;
 					}
 					return static_cast<size_t>(0);
@@ -1693,7 +1697,7 @@ public:
 
 		if (chokudaiSearch.back().empty())
 		{
-			std::cerr << "想定外のエラー" << std::endl;
+			errerLine("想定外のエラー");
 			return CommandRest();
 		}
 		else
@@ -1739,7 +1743,7 @@ int main()
 		const auto &coms = ai.think();
 		sw.stop();
 
-		std::cerr << sw.toString_ms() << std::endl;
+		errerLine(sw.toString_ms());
 
 		std::cout << coms << " " << sw.toString_ms() << std::endl;
 	}
