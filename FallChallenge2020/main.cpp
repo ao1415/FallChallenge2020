@@ -288,6 +288,63 @@ public:
 	}
 };
 
+/**
+ * @brief xoshiro128++
+ * 
+ */
+class XoShiro128
+{
+public:
+	using value_type = uint32_t;
+
+private:
+	value_type m_state0 = 723471715u;
+	value_type m_state1 = 2497366906u;
+	value_type m_state2 = 2064144800u;
+	value_type m_state3 = 2008045182u;
+
+public:
+	XoShiro128() {}
+
+	/**
+	 * @brief 32bitの乱数値を取得する
+	 * 
+	 * @return value_type 
+	 */
+	[[nodiscard]] value_type next()
+	{
+		const value_type rotl_tmp = m_state0 + m_state3;
+		const value_type result = ((rotl_tmp << 7) | (rotl_tmp >> (32 - 7))) + m_state0;
+
+		const value_type t = m_state1 << 9;
+
+		m_state2 ^= m_state0;
+		m_state3 ^= m_state1;
+		m_state1 ^= m_state2;
+		m_state0 ^= m_state3;
+
+		m_state2 ^= t;
+
+		m_state3 = ((m_state3 << 11) | (m_state3 >> (32 - 11)));
+
+		return result;
+	}
+
+	/**
+	 * @brief [0.0, 1.0)の範囲の乱数値を取得する
+	 * 
+	 * @return double [0.0, 1.0)
+	 */
+	[[nodiscard]] double nextDouble()
+	{
+		const value_type v1 = next();
+		const value_type v2 = next();
+		const uint64_t v = (static_cast<uint64_t>(v1) << 32) | static_cast<uint64_t>(v2);
+
+		return static_cast<double>((v >> 11) * 0x1.0p-53);
+	}
+};
+
 #pragma endregion
 
 #pragma region 定数宣言
@@ -1271,6 +1328,7 @@ private:
 	using DataPack = Data<SearchTurn> *;
 	using Pool = MemoryPool<Data<SearchTurn>, (1 << 18)>;
 	Data<SearchTurn> topData;
+	XoShiro128 xoshiro;
 
 	struct DataLess
 	{
@@ -1285,7 +1343,7 @@ private:
 	int gameTurn = 0;
 	std::array<int, CastSpell.size()> convertCastActionId;
 
-	double evaluate(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index) const
+	double evaluate(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index)
 	{
 		const double topScore = data->score;
 		double score = 0;
@@ -1311,7 +1369,13 @@ private:
 			break;
 		}
 
-		return topScore + score * evaluateExp[turn];
+		//経過ターンによる補正
+		score = (score * evaluateExp[turn]);
+		
+		//乱数によるブレ
+		score = score * SearchTurn + xoshiro.nextDouble();
+		
+		return topScore + score;
 	}
 
 	Magic learn2cast(const Magic &learn) const
@@ -1367,7 +1431,7 @@ private:
 	 * @param top 探査ノード
 	 * @param chokudaiSearch 探査キュー配列
 	 */
-	void searchLearn(const size_t learnIndex, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch) const
+	void searchLearn(const size_t learnIndex, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
 	{
 		if (magic.getLearnAvailable())
 		{
@@ -1415,7 +1479,7 @@ private:
 	 * @param top 探査ノード
 	 * @param chokudaiSearch 探査キュー配列
 	 */
-	void searchBrew(const size_t potionIndex, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch) const
+	void searchBrew(const size_t potionIndex, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
 	{
 		if (magic.getBrewAvailable())
 		{
@@ -1479,7 +1543,7 @@ private:
 	 * @param top 探査ノード
 	 * @param chokudaiSearch 探査キュー配列
 	 */
-	void searchCast(const size_t castIndex, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch) const
+	void searchCast(const size_t castIndex, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
 	{
 		if (magic.getCastable())
 		{
@@ -1518,7 +1582,7 @@ private:
 			}
 		}
 	}
-	void searchCast(const size_t castIndex, const int times, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch) const
+	void searchCast(const size_t castIndex, const int times, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
 	{
 		if (magic.getCastable())
 		{
@@ -1549,7 +1613,7 @@ private:
 	 * @param top 探査ノード
 	 * @param chokudaiSearch 探査キュー配列
 	 */
-	void searchRest(const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch) const
+	void searchRest(const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
 	{
 		DataPack next = new (Pool::instance->get()) Data<SearchTurn>(*top);
 
