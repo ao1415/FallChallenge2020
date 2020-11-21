@@ -685,11 +685,16 @@ public:
 class Input
 {
 private:
+	bool eof = true;
+
 	template <typename Type>
-	Type read() const
+	Type read()
 	{
 		Type value;
-		std::cin >> value;
+		if (!std::cin >> value)
+		{
+			eof = false;
+		}
 
 #ifdef REDIRECT
 		std::cerr << value << std::endl;
@@ -698,10 +703,13 @@ private:
 		return value;
 	}
 	template <typename Type = std::string>
-	Type readLine() const
+	Type readLine()
 	{
 		Type value;
-		std::getline(std::cin, value);
+		if (!std::getline(std::cin, value))
+		{
+			eof = false;
+		}
 
 #ifdef REDIRECT
 		std::cerr << value << std::endl;
@@ -724,7 +732,7 @@ public:
 		auto &share = Share::Get();
 	}
 
-	void loop()
+	bool loop()
 	{
 		auto &share = Share::Get();
 
@@ -733,6 +741,9 @@ public:
 			std::stringstream ss(readLine());
 			ss >> actionCount;
 			//ignore();
+
+			if (!eof)
+				return false;
 		}
 
 		const auto opponentCastsSize = share.opponentCasts.size();
@@ -864,6 +875,8 @@ public:
 				share.opponentOperation = Object::Operation::Brew;
 			}
 		}
+
+		return true;
 	}
 };
 
@@ -1722,10 +1735,8 @@ int main()
 
 	AI ai;
 
-	while (true)
+	while (input.loop())
 	{
-		input.loop();
-
 		sw.start();
 		const auto &coms = ai.think();
 		sw.stop();
