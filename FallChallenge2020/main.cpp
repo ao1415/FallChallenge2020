@@ -1275,14 +1275,13 @@ private:
 
 	using PriorityQueue = std::priority_queue<DataPack, std::vector<DataPack>, DataLess>;
 
+	int gameTurn = 0;
 	std::array<int, CastSpell.size()> convertCastActionId;
 
 	double evaluate(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index) const
 	{
 		const double topScore = data->score;
 		double score = 0;
-
-		const auto share = Share::Get();
 
 		switch (operation)
 		{
@@ -1293,7 +1292,7 @@ private:
 			score += 1.0;
 			break;
 		case Object::Operation::Learn:
-			score += learnExp[std::min(learnExp.size() - 1, share.getTurn() + turn)];
+			score += learnExp[std::min(learnExp.size() - 1, gameTurn + turn)];
 			score += (magic.getLearnTaxCount() - magic.getLearnTaxCount()) / 3.0;
 			break;
 		case Object::Operation::Rest:
@@ -1640,6 +1639,7 @@ public:
 		Pool::instance->clear();
 
 		const auto &share = Share::Get();
+		gameTurn = share.getTurn();
 
 		std::array<PriorityQueue, SearchTurn + 1> chokudaiSearch;
 		{
