@@ -391,6 +391,16 @@ struct Tier
 	{
 	}
 
+	constexpr Tier getPlus() const
+	{
+		const value_type t0 = tier0 > 0 ? tier0 : 0;
+		const value_type t1 = tier1 > 0 ? tier1 : 0;
+		const value_type t2 = tier2 > 0 ? tier2 : 0;
+		const value_type t3 = tier3 > 0 ? tier3 : 0;
+
+		return Tier(t0, t1, t2, t3);
+	}
+
 	value_type getSum() const
 	{
 		return tier0 + tier1 + tier2 + tier3;
@@ -401,7 +411,7 @@ struct Tier
 		return tier1 + tier2 + tier3;
 	}
 
-	Tier operator+(const Tier &o) const
+	constexpr Tier operator+(const Tier &o) const
 	{
 		return Tier(
 			tier0 + o.tier0,
@@ -417,12 +427,12 @@ struct Tier
 		tier3 += o.tier3;
 	}
 
-	bool operator==(const Tier &o) const
+	constexpr bool operator==(const Tier &o) const
 	{
 		return (tier0 == o.tier0 && tier1 == o.tier1 && tier2 == o.tier2 && tier3 == o.tier3);
 	}
 
-	bool operator<(const Tier &o) const
+	constexpr bool operator<(const Tier &o) const
 	{
 		if (tier0 != o.tier0)
 			return tier0 < o.tier0;
@@ -589,6 +599,53 @@ constexpr std::array<Magic, 42> LearnSpell = {
 	ID20, ID21, ID22, ID23, ID24, ID25, ID26, ID27, ID28, ID29,
 	ID30, ID31, ID32, ID33, ID34, ID35, ID36, ID37, ID38, ID39,
 	ID40, ID41};
+constexpr std::array<Tier, 42 + 4> LearnSpellPlus = {
+	ID00.delta.getPlus(),
+	ID01.delta.getPlus(),
+	ID02.delta.getPlus(),
+	ID03.delta.getPlus(),
+	ID04.delta.getPlus(),
+	ID05.delta.getPlus(),
+	ID06.delta.getPlus(),
+	ID07.delta.getPlus(),
+	ID08.delta.getPlus(),
+	ID09.delta.getPlus(),
+	ID10.delta.getPlus(),
+	ID11.delta.getPlus(),
+	ID12.delta.getPlus(),
+	ID13.delta.getPlus(),
+	ID14.delta.getPlus(),
+	ID15.delta.getPlus(),
+	ID16.delta.getPlus(),
+	ID17.delta.getPlus(),
+	ID18.delta.getPlus(),
+	ID19.delta.getPlus(),
+	ID20.delta.getPlus(),
+	ID21.delta.getPlus(),
+	ID22.delta.getPlus(),
+	ID23.delta.getPlus(),
+	ID24.delta.getPlus(),
+	ID25.delta.getPlus(),
+	ID26.delta.getPlus(),
+	ID27.delta.getPlus(),
+	ID28.delta.getPlus(),
+	ID29.delta.getPlus(),
+	ID30.delta.getPlus(),
+	ID31.delta.getPlus(),
+	ID32.delta.getPlus(),
+	ID33.delta.getPlus(),
+	ID34.delta.getPlus(),
+	ID35.delta.getPlus(),
+	ID36.delta.getPlus(),
+	ID37.delta.getPlus(),
+	ID38.delta.getPlus(),
+	ID39.delta.getPlus(),
+	ID40.delta.getPlus(),
+	ID41.delta.getPlus(),
+	ID78.delta.getPlus(),
+	ID79.delta.getPlus(),
+	ID80.delta.getPlus(),
+	ID81.delta.getPlus()};
 constexpr std::array<Magic, 42 + 4> CastSpell = {
 	ID00, ID01, ID02, ID03, ID04, ID05, ID06, ID07, ID08, ID09,
 	ID10, ID11, ID12, ID13, ID14, ID15, ID16, ID17, ID18, ID19,
@@ -1310,6 +1367,7 @@ private:
 
 	inline static const EvaluateExp<SearchTurn> evaluateExp;
 	inline static const EvaluateExp<40> learnExp;
+	inline static const EvaluateExp<4> learnCastExp;
 
 	using MagicList = std::array<MagicBit, std::max(LearnSpell.size(), std::max(CastSpell.size(), BrewPostion.size()))>;
 
@@ -1317,6 +1375,7 @@ private:
 	struct Data
 	{
 		Tier inventory;
+		Tier delta;
 		MagicList magicList;
 		std::array<CommandPack, Length> commands;
 		double score = 0;
@@ -1349,22 +1408,37 @@ private:
 		const double topScore = data->score;
 		double score = 0;
 
+		//各スペルによる増加分によってボーナス
+		score += learnCastExp[std::max(0, static_cast<int>(learnCastExp.size()) - data->delta.tier0 - 1)] * 0.3;
+		score += learnCastExp[std::max(0, static_cast<int>(learnCastExp.size()) - data->delta.tier1 - 1)] * 0.3;
+		score += learnCastExp[std::max(0, static_cast<int>(learnCastExp.size()) - data->delta.tier2 - 1)] * 0.3;
+		score += learnCastExp[std::max(0, static_cast<int>(learnCastExp.size()) - data->delta.tier3 - 1)] * 0.3;
+
 		switch (operation)
 		{
 		case Object::Operation::Brew:
 			score += BrewPostion[index].price;
 
-			if (data->brewCount >= Object::PotionLimit)
+			if (data->brewCount < Object::PotionLimit)
+			{
+				score += (SearchTurn - turn) / 10.0; //早期ボーナス
+			}
+			else
 			{
 				score += data->inventory.getScore();
+				score += SearchTurn - turn; //早期ボーナス
 			}
 			break;
 		case Object::Operation::Cast:
 			score += 1.0;
 			break;
 		case Object::Operation::Learn:
+
+			//後半はあまり取得しないようにする
 			score += learnExp[std::min(learnExp.size() - 1, gameTurn + turn)];
-			score += (magic.getLearnTaxCount() - magic.getLearnTaxCount()) / 3.0;
+
+			//2ターン連続で取得する場合、下からとるようにする
+			score += (magic.getLearnTaxCount() - (magic.getLearnTomeIndex() * 1.05)) / 3.0;
 			break;
 		case Object::Operation::Rest:
 			break;
@@ -1447,6 +1521,7 @@ private:
 
 				next->magicList[learnIndex].setCast(true, true);
 				next->magicList[learnIndex].setLearnAvailable(false);
+				next->delta += LearnSpellPlus[learnIndex];
 
 				const auto index = magic.getLearnTomeIndex();
 				std::for_each(next->magicList.begin(), next->magicList.end(), [index](decltype(next->magicList)::reference m) {
@@ -1465,7 +1540,6 @@ private:
 						}
 					}
 				});
-
 				next->inventory.tier0 += std::min(Object::InventorySize - next->inventory.getSum(), magic.getLearnTaxCount() - index);
 
 				next->commands[turn] = CommandPack::Learn(LearnSpell[learnIndex].actionId);
@@ -1508,6 +1582,7 @@ private:
 				});
 
 				next->inventory += BrewPostion[potionIndex].delta;
+				next->delta += LearnSpellPlus[potionIndex];
 
 				const int bonus = [&]() {
 					if (index == 0 && next->bonus3 > 0)
@@ -1732,7 +1807,12 @@ public:
 			DataPack init = new (Pool::instance->get()) Data<SearchTurn>();
 
 			init->inventory = share.getInventory().inv;
+			init->delta = LearnSpellPlus[ID78.actionId] + LearnSpellPlus[ID79.actionId] + LearnSpellPlus[ID80.actionId] + LearnSpellPlus[ID81.actionId];
+
 			init->magicList = convertInputData(share.getCasts());
+
+			init->brewCount = share.getBrewCount();
+			init->price = share.getInventory().score;
 
 			const auto brews = share.getBrews();
 			init->bonus3 = brews[0].taxCount;
