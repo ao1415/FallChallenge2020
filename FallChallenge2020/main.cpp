@@ -290,7 +290,7 @@ public:
 
 /**
  * @brief xoshiro128++
- * 
+ *
  */
 class XoShiro128
 {
@@ -308,8 +308,8 @@ public:
 
 	/**
 	 * @brief 32bitの乱数値を取得する
-	 * 
-	 * @return value_type 
+	 *
+	 * @return value_type
 	 */
 	[[nodiscard]] value_type next()
 	{
@@ -332,7 +332,7 @@ public:
 
 	/**
 	 * @brief [0.0, 1.0)の範囲の乱数値を取得する
-	 * 
+	 *
 	 * @return float [0.0, 1.0)
 	 */
 	[[nodiscard]] float nextFloat()
@@ -343,7 +343,7 @@ public:
 	}
 	/**
 	 * @brief [0.0, 1.0)の範囲の乱数値を取得する
-	 * 
+	 *
 	 * @return double [0.0, 1.0)
 	 */
 	[[nodiscard]] double nextDouble()
@@ -371,6 +371,7 @@ namespace Object
 
 	const int InventorySize = 10;
 	const int PotionLimit = 6;
+	const int LearnSize = 6;
 
 	enum class Operation : char
 	{
@@ -604,66 +605,22 @@ constexpr Magic ID75{75, Tier(-1, -3, -1, -1), 16, -1, -1, false, true};
 constexpr Magic ID76{76, Tier(-1, -1, -3, -1), 18, -1, -1, false, true};
 constexpr Magic ID77{77, Tier(-1, -1, -1, -3), 20, -1, -1, false, true};
 
-constexpr std::array<Magic, 42> LearnSpell = {
+constexpr size_t LearnSpellSize = 42;
+constexpr Magic LearnSpell[LearnSpellSize] = {
 	ID00, ID01, ID02, ID03, ID04, ID05, ID06, ID07, ID08, ID09,
 	ID10, ID11, ID12, ID13, ID14, ID15, ID16, ID17, ID18, ID19,
 	ID20, ID21, ID22, ID23, ID24, ID25, ID26, ID27, ID28, ID29,
 	ID30, ID31, ID32, ID33, ID34, ID35, ID36, ID37, ID38, ID39,
 	ID40, ID41};
-constexpr std::array<Tier, 42 + 4> LearnSpellPlus = {
-	ID00.delta.getPlus(),
-	ID01.delta.getPlus(),
-	ID02.delta.getPlus(),
-	ID03.delta.getPlus(),
-	ID04.delta.getPlus(),
-	ID05.delta.getPlus(),
-	ID06.delta.getPlus(),
-	ID07.delta.getPlus(),
-	ID08.delta.getPlus(),
-	ID09.delta.getPlus(),
-	ID10.delta.getPlus(),
-	ID11.delta.getPlus(),
-	ID12.delta.getPlus(),
-	ID13.delta.getPlus(),
-	ID14.delta.getPlus(),
-	ID15.delta.getPlus(),
-	ID16.delta.getPlus(),
-	ID17.delta.getPlus(),
-	ID18.delta.getPlus(),
-	ID19.delta.getPlus(),
-	ID20.delta.getPlus(),
-	ID21.delta.getPlus(),
-	ID22.delta.getPlus(),
-	ID23.delta.getPlus(),
-	ID24.delta.getPlus(),
-	ID25.delta.getPlus(),
-	ID26.delta.getPlus(),
-	ID27.delta.getPlus(),
-	ID28.delta.getPlus(),
-	ID29.delta.getPlus(),
-	ID30.delta.getPlus(),
-	ID31.delta.getPlus(),
-	ID32.delta.getPlus(),
-	ID33.delta.getPlus(),
-	ID34.delta.getPlus(),
-	ID35.delta.getPlus(),
-	ID36.delta.getPlus(),
-	ID37.delta.getPlus(),
-	ID38.delta.getPlus(),
-	ID39.delta.getPlus(),
-	ID40.delta.getPlus(),
-	ID41.delta.getPlus(),
-	ID78.delta.getPlus(),
-	ID79.delta.getPlus(),
-	ID80.delta.getPlus(),
-	ID81.delta.getPlus()};
-constexpr std::array<Magic, 42 + 4> CastSpell = {
+constexpr size_t CastSpellSize = 42 + 4;
+constexpr Magic CastSpell[CastSpellSize] = {
 	ID00, ID01, ID02, ID03, ID04, ID05, ID06, ID07, ID08, ID09,
 	ID10, ID11, ID12, ID13, ID14, ID15, ID16, ID17, ID18, ID19,
 	ID20, ID21, ID22, ID23, ID24, ID25, ID26, ID27, ID28, ID29,
 	ID30, ID31, ID32, ID33, ID34, ID35, ID36, ID37, ID38, ID39,
 	ID40, ID41, ID78, ID79, ID80, ID81};
-constexpr std::array<Magic, 36> BrewPostion = {
+constexpr size_t BrewPostionSize = 36;
+constexpr Magic BrewPostion[BrewPostionSize] = {
 	ID42, ID43, ID44, ID45, ID46, ID47, ID48, ID49,
 	ID50, ID51, ID52, ID53, ID54, ID55, ID56, ID57, ID58, ID59,
 	ID60, ID61, ID62, ID63, ID64, ID65, ID66, ID67, ID68, ID69,
@@ -1407,14 +1364,14 @@ private:
 	inline static const EvaluateExp<45> learnExp;
 	inline static const EvaluateExp<4> learnCastExp;
 
-	using MagicList = std::array<MagicBit, std::max(LearnSpell.size(), std::max(CastSpell.size(), BrewPostion.size()))>;
+	using MagicList = std::array<MagicBit, std::max(LearnSpellSize, std::max(CastSpellSize, BrewPostionSize))>;
 
 	template <size_t Length>
 	struct Data
 	{
 		Tier inventory;
 		MagicList magicList;
-		std::array<CommandPack, Length> commands;
+		CommandPack commands[Length];
 		double score = 0;
 		int price = 0;
 		int brewCount = 0;
@@ -1438,16 +1395,18 @@ private:
 	using PriorityQueue = std::priority_queue<DataPack, std::vector<DataPack>, DataLess>;
 
 	int gameTurn = 0;
-	std::array<int, CastSpell.size()> convertCastActionId;
-	std::array<int, BrewPostion.size()> opponentBrewTurn;
+	int convertCastActionId[CastSpellSize];
+	std::array<int, BrewPostionSize> opponentBrewTurn;
 	std::array<int, SearchTurn> opponentTurnScore;
 	int opponentInventoryScore;
+
+	size_t learnAvailableIndex[Object::LearnSize] = {0};
 
 	double (AI::*evaluate)(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index);
 
 	/**
 	 * @brief 自分の評価関数
-	 * 
+	 *
 	 * @param turn 探査しているターン数(相対値)
 	 * @param data 処理を行った後の状態
 	 * @param operation 処理内容
@@ -1563,10 +1522,12 @@ private:
 		const auto &brews = share.getBrews();
 
 		MagicList magicList;
-		for (const auto &learn : learns)
+		//for (const auto &learn : learns)
+		forange(i, learns.size())
 		{
-			const auto idx = LearnSpellMap.at(learn.delta);
-			magicList[idx].setLearn(learn.tomeIndex, learn.taxCount, true);
+			const auto idx = LearnSpellMap.at(learns[i].delta);
+			magicList[idx].setLearn(learns[i].tomeIndex, learns[i].taxCount, true);
+			learnAvailableIndex[i] = idx;
 		}
 
 		forange(i, brews.size())
@@ -1576,7 +1537,7 @@ private:
 			magicList[idx].setBrewIndex(static_cast<int>(i));
 		}
 
-		convertCastActionId.fill(0);
+		std::fill(convertCastActionId, convertCastActionId + CastSpellSize, 0);
 		for (const auto &cast : casts)
 		{
 			const auto idx = CastSpellMap.at(cast.delta);
@@ -1608,20 +1569,21 @@ private:
 				next->magicList[learnIndex].setLearnAvailable(false);
 
 				const auto index = magic.getLearnTomeIndex();
-				forange(i, next->magicList.size())
+				forange(i, Object::LearnSize)
 				{
-					if (next->magicList[i].getLearnAvailable())
+					const auto learn = learnAvailableIndex[i];
+					if (next->magicList[learn].getLearnAvailable())
 					{
-						const auto idx = next->magicList[i].getLearnTomeIndex();
+						const auto idx = next->magicList[learn].getLearnTomeIndex();
 						if (idx > index)
 						{
 							//インデックス減算
-							next->magicList[i].decLearnTomeIndex();
+							next->magicList[learn].decLearnTomeIndex();
 						}
 						else
 						{
 							//先読み税加算
-							next->magicList[i].incLearnTaxCount();
+							next->magicList[learn].incLearnTaxCount();
 						}
 					}
 				}
@@ -1655,39 +1617,39 @@ private:
 
 				next->magicList[potionIndex].setBrewAvailable(false);
 				const int index = next->magicList[potionIndex].getBrewIndex();
-				std::for_each(next->magicList.begin(), next->magicList.end(), [index](decltype(next->magicList)::reference m) {
-					if (m.getLearnAvailable())
+
+				forange(i, next->magicList.size())
+				{
+					if (next->magicList[i].getLearnAvailable())
 					{
-						const auto idx = m.getLearnTomeIndex();
+						const auto idx = next->magicList[i].getLearnTomeIndex();
 						if (idx > index)
 						{
 							//インデックス減算
-							m.decBrewIndex();
+							next->magicList[i].decBrewIndex();
 						}
 					}
-				});
+				}
 
 				next->inventory += BrewPostion[potionIndex].delta;
 
-				const int bonus = [&]() {
-					if (index == 0 && next->bonus3 > 0)
-					{
-						next->bonus3--;
-						return 3;
-					}
-					else if (index == 0 && next->bonus1 > 0)
-					{
-						next->bonus1--;
-						return 1;
-					}
-					else if (index == 1 && next->bonus1 > 0)
-					{
-						next->bonus1--;
-						return 1;
-					}
-					else
-						return 0;
-				}();
+				int bonus = 0;
+
+				if (index == 0 && next->bonus3 > 0)
+				{
+					next->bonus3--;
+					bonus = 3;
+				}
+				else if (index == 0 && next->bonus1 > 0)
+				{
+					next->bonus1--;
+					bonus = 1;
+				}
+				else if (index == 1 && next->bonus1 > 0)
+				{
+					next->bonus1--;
+					bonus = 1;
+				}
 
 				next->price += BrewPostion[potionIndex].price + bonus;
 				next->brewCount += 1;
@@ -1757,7 +1719,7 @@ private:
 	}
 	/**
 	 * @brief 素材変換
-	 * 
+	 *
 	 * @param castIndex スペル番号
 	 * @param times スペル繰返回数
 	 * @param magic スペル付加情報
@@ -1834,7 +1796,7 @@ private:
 			{
 			case Object::Operation::Brew:
 			{
-				const auto idx = id - BrewPostion.front().actionId;
+				const auto idx = id - BrewPostion[0].actionId;
 				searchBrew(idx, top->magicList[idx], turn, top, chokudaiSearch[turn + 1], chokudaiSearch[SearchTurn]);
 			}
 			break;
@@ -1843,7 +1805,7 @@ private:
 			{
 
 				const auto idx = [&]() {
-					forange(i, convertCastActionId.size())
+					forange(i, CastSpellSize)
 					{
 						if (convertCastActionId[i] == id)
 							return i;
@@ -1918,7 +1880,7 @@ private:
 
 					if (turn > 0 && top->commands[turn - 1].getOperation() == Object::Operation::Brew)
 					{
-						const auto idx = top->commands[turn - 1].getActionId() - BrewPostion.front().actionId;
+						const auto idx = top->commands[turn - 1].getActionId() - BrewPostion[0].actionId;
 						opponentBrewTurn[idx] = std::min(opponentBrewTurn[idx], static_cast<int>(turn - 1));
 					}
 					else
@@ -2049,13 +2011,13 @@ public:
 		else
 		{
 			topData = *chokudaiSearch.back().top();
-			const auto com = topData.commands.front().getCommand();
+			const auto com = topData.commands[0].getCommand();
 
 			std::string debugMes = "";
 
 			int setTurn = 0;
 			bool add = false;
-			forange(i, topData.commands.size())
+			forange(i, SearchTurn)
 			{
 				if (topData.commands[i].getOperation() == Object::Operation::Brew)
 				{
@@ -2074,7 +2036,7 @@ public:
 			{
 				if (opponentBrewTurn[i] != std::numeric_limits<int>::max())
 				{
-					debugMes += std::to_string(i + BrewPostion.front().actionId) + std::to_string(opponentBrewTurn[i]) + "-";
+					debugMes += std::to_string(i + BrewPostion[0].actionId) + std::to_string(opponentBrewTurn[i]) + "-";
 					add = true;
 				}
 			}
