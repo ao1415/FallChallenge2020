@@ -1155,11 +1155,7 @@ public:
 	 * @param actionId ポーションID
 	 * @return CommandPack コマンド
 	 */
-	static CommandPack
-	Brew(const int actionId)
-	{
-		return CommandPack(Object::Operation::Brew, actionId);
-	}
+	inline static CommandPack Brew(const int actionId) { return CommandPack(Object::Operation::Brew, actionId); }
 
 	/**
 	 * @brief スペル実行
@@ -1168,7 +1164,7 @@ public:
 	 * @param times 繰り返し回数
 	 * @return CommandPack コマンド
 	 */
-	static CommandPack Cast(const int actionId, const int times = 0) { return CommandPack(Object::Operation::Cast, actionId, times); }
+	inline static CommandPack Cast(const int actionId, const int times = 0) { return CommandPack(Object::Operation::Cast, actionId, times); }
 
 	/**
 	 * @brief スペル取得
@@ -1176,21 +1172,21 @@ public:
 	 * @param actionId スペルID
 	 * @return CommandPack コマンド
 	 */
-	static CommandPack Learn(const int actionId) { return CommandPack(Object::Operation::Learn, actionId); }
+	inline static CommandPack Learn(const int actionId) { return CommandPack(Object::Operation::Learn, actionId); }
 
 	/**
 	 * @brief スペル再使用
 	 *
 	 * @return CommandPack コマンド
 	 */
-	static CommandPack Rest() { return CommandPack(Object::Operation::Rest); }
+	inline static CommandPack Rest() { return CommandPack(Object::Operation::Rest); }
 
 	/**
 	 * @brief なにもしない
 	 *
 	 * @return CommandPack コマンド
 	 */
-	static CommandPack Wait() { return CommandPack(Object::Operation::Wait); }
+	inline static CommandPack Wait() { return CommandPack(Object::Operation::Wait); }
 };
 
 class Simulator
@@ -1612,22 +1608,24 @@ private:
 				next->magicList[learnIndex].setLearnAvailable(false);
 
 				const auto index = magic.getLearnTomeIndex();
-				std::for_each(next->magicList.begin(), next->magicList.end(), [index](decltype(next->magicList)::reference m) {
-					if (m.getLearnAvailable())
+				forange(i, next->magicList.size())
+				{
+					if (next->magicList[i].getLearnAvailable())
 					{
-						const auto idx = m.getLearnTomeIndex();
+						const auto idx = next->magicList[i].getLearnTomeIndex();
 						if (idx > index)
 						{
 							//インデックス減算
-							m.decLearnTomeIndex();
+							next->magicList[i].decLearnTomeIndex();
 						}
 						else
 						{
 							//先読み税加算
-							m.incLearnTaxCount();
+							next->magicList[i].incLearnTaxCount();
 						}
 					}
-				});
+				}
+
 				next->inventory.tier0 += std::min(Object::InventorySize - next->inventory.getSum(), magic.getLearnTaxCount() - index);
 
 				next->commands[turn] = CommandPack::Learn(LearnSpell[learnIndex].actionId);
@@ -2068,7 +2066,7 @@ public:
 			}
 			if (add)
 				debugMes.pop_back();
-				
+
 			//debugMes += "P" + std::to_string(topData.price) + "," + std::to_string(loopCount);
 			debugMes += " ";
 			add = false;
