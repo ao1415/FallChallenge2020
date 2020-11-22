@@ -1745,11 +1745,11 @@ private:
 						DataPack next2 = new (Pool::instance->get()) Data<SearchTurn>(*next);
 
 						inv += CastSpell[castIndex].delta;
-						next->inventory = inv;
+						next2->inventory = inv;
 
-						next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], times);
+						next2->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], times);
 
-						nextQueue.push(next);
+						nextQueue.push(next2);
 
 						times++;
 					}
