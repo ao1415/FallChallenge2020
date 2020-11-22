@@ -363,7 +363,7 @@ public:
 namespace Object
 {
 	const std::string RoundActionCast = "CAST";
-	const std::string RoundActionOpponentCast = "OPPONENT_CAST ";
+	const std::string RoundActionOpponentCast = "OPPONENT_CAST";
 	const std::string RoundActionLearn = "LEARN";
 	const std::string RoundActionBrew = "BREW";
 	const std::string RoundActionRest = "REST";
@@ -717,7 +717,7 @@ private:
 	int brewCount = 0;
 	int opponentBrewCount = 0;
 
-	int turn = 0;
+	int turn = -1;
 
 	Object::Operation opponentOperation = Object::Operation::Wait;
 
@@ -854,7 +854,6 @@ public:
 
 	void first()
 	{
-
 		auto &share = Share::Get();
 	}
 
@@ -1375,6 +1374,7 @@ private:
 	inline static const int SearchTurn = 20;
 	inline static const int ChokudaiWidth = 3;
 	inline static const int SurveyTurn = 8;
+	//inline static const int SurveyWidth = 5000;
 
 	inline static const EvaluateExp<SearchTurn> evaluateExp;
 	inline static const EvaluateExp<45> learnExp;
@@ -1422,33 +1422,23 @@ private:
 		const double topScore = data->score;
 		double score = 0;
 
-		//各スペルによる増加分によってボーナス
-		// const static double learnCastExpScore[3] = {learnCastExp[3] * 0.3, learnCastExp[2] * 0.3, learnCastExp[1] * 0.3};
-		// if (data->delta.tier0 < learnCastExp.size())
-		// 	score += learnCastExpScore[data->delta.tier0];
-		// else
-		// 	score += 0.3;
-		// if (data->delta.tier1 < learnCastExp.size())
-		// 	score += learnCastExpScore[data->delta.tier1];
-		// else
-		// 	score += 0.3;
-		// if (data->delta.tier2 < learnCastExp.size())
-		// 	score += learnCastExpScore[data->delta.tier2];
-		// else
-		// 	score += 0.3;
-		// if (data->delta.tier3 < learnCastExp.size())
-		// 	score += learnCastExpScore[data->delta.tier3];
-		// else
-		// 	score += 0.3;
-
 		switch (operation)
 		{
 		case Object::Operation::Brew:
 
 			if (data->brewCount < Object::PotionLimit)
 			{
-				score += data->price;
-				score += data->brewCount / 6.0; //早期ボーナス
+				const auto opponentTurn = opponentBrewTurn[index];
+				if (turn <= opponentTurn)
+				{
+					score += data->price;
+				}
+				else
+				{
+					score += data->price;
+				}
+				
+				//score += data->brewCount / 6.0; //早期ボーナス
 			}
 			else
 			{
@@ -1494,7 +1484,7 @@ private:
 		switch (operation)
 		{
 		case Object::Operation::Brew:
-			score += data->price;
+			score += data->price * 100;
 			break;
 		case Object::Operation::Cast:
 			score += 1.0;
@@ -1535,7 +1525,6 @@ private:
 		const auto &brews = share.getBrews();
 
 		MagicList magicList;
-
 		for (const auto &learn : learns)
 		{
 			const auto idx = LearnSpellMap.at(learn.delta);
@@ -1548,6 +1537,8 @@ private:
 			magicList[idx].setBrewAvailable(true);
 			magicList[idx].setBrewIndex(static_cast<int>(i));
 		}
+
+		convertCastActionId.fill(0);
 		for (const auto &cast : casts)
 		{
 			const auto idx = CastSpellMap.at(cast.delta);
@@ -1848,7 +1839,7 @@ private:
 	{
 		const auto &share = Share::Get();
 
-		PriorityQueue que;
+		std::array<PriorityQueue, SearchTurn + 1> chokudaiSearch;
 		{
 			DataPack init = new (Pool::instance->get()) Data<SearchTurn>();
 
@@ -1856,54 +1847,58 @@ private:
 
 			init->magicList = convertInputData(share.getOpponentCasts());
 
-			init->brewCount = share.getOpponentBrewCount();
+			//init->brewCount = share.getOpponentBrewCount();
+			//終了判定をさせない
+			init->brewCount = 0;
 			init->price = share.getOpponentInventory().score;
 
 			const auto brews = share.getBrews();
 			init->bonus3 = brews[0].taxCount;
 			init->bonus1 = brews[1].taxCount;
 
-			que.push(init);
+			evaluate = &AI::evaluateOpponent;
+
+			chokudaiSearch.front().push(init);
 		}
 
 		opponentBrewTurn.fill(std::numeric_limits<int>::max());
 
-		forange(turn, SurveyTurn)
+		MilliSecTimer timer(std::chrono::milliseconds(10));
+		timer.start();
+		while (!timer)
 		{
-			PriorityQueue nextQueue;
-			PriorityQueue lastQueue;
-
-			forange(w, 3000)
+			forange(turn, SurveyTurn)
 			{
-				if (que.empty())
-					break;
-
-				const auto top = que.top();
-				que.pop();
-
-				if (turn > 0 && top->commands[turn - 1].getOperation() == Object::Operation::Brew)
+				forange(w, ChokudaiWidth)
 				{
-					const auto idx = top->commands[turn - 1].getActionId() - BrewPostion.front().actionId;
-					opponentBrewTurn[idx] = std::min(opponentBrewTurn[idx], static_cast<int>(turn));
-				}
-				else
-				{
-					forange(i, top->magicList.size())
+					if (chokudaiSearch[turn].empty())
+						break;
+
+					const auto top = chokudaiSearch[turn].top();
+					chokudaiSearch[turn].pop();
+
+					if (turn > 0 && top->commands[turn - 1].getOperation() == Object::Operation::Brew)
 					{
-						const auto &magic = top->magicList[i];
+						const auto idx = top->commands[turn - 1].getActionId() - BrewPostion.front().actionId;
+						opponentBrewTurn[idx] = std::min(opponentBrewTurn[idx], static_cast<int>(turn - 1));
+					}
+					else
+					{
+						forange(i, top->magicList.size())
+						{
+							const auto &magic = top->magicList[i];
 
-						searchBrew(i, magic, turn, top, nextQueue, lastQueue);
-						searchLearn(i, magic, turn, top, nextQueue);
-						searchCast(i, magic, turn, top, nextQueue);
+							searchBrew(i, magic, turn, top, chokudaiSearch[turn + 1], chokudaiSearch[SearchTurn]);
+							searchLearn(i, magic, turn, top, chokudaiSearch[turn + 1]);
+							searchCast(i, magic, turn, top, chokudaiSearch[turn + 1]);
+						}
+
+						searchRest(turn, top, chokudaiSearch[turn + 1]);
 					}
 
-					searchRest(turn, top, nextQueue);
+					Pool::instance->release(top);
 				}
-
-				Pool::instance->release(top);
 			}
-
-			que.swap(nextQueue);
 		}
 	}
 
@@ -1911,7 +1906,6 @@ public:
 	AI()
 	{
 		Pool::Create();
-		convertCastActionId.fill(0);
 	}
 
 	std::string think()
@@ -1922,7 +1916,6 @@ public:
 		gameTurn = share.getTurn();
 
 		{
-			evaluate = &AI::evaluateOpponent;
 			thinkOpponent();
 			Pool::instance->clear();
 		}
@@ -1973,6 +1966,7 @@ public:
 				{
 					if (chokudaiSearch[turn].empty())
 						break;
+
 					const auto top = chokudaiSearch[turn].top();
 					chokudaiSearch[turn].pop();
 
@@ -2020,7 +2014,7 @@ public:
 			{
 				if (opponentBrewTurn[i] != std::numeric_limits<int>::max())
 				{
-					debugMes += std::to_string(i) + "@" + std::to_string(opponentBrewTurn[i]) + " ";
+					debugMes += std::to_string(i + BrewPostion.front().actionId) + "@" + std::to_string(opponentBrewTurn[i]) + " ";
 				}
 			}
 
