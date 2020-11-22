@@ -273,7 +273,7 @@ public:
 	{
 		forange(x, Size)
 		{
-			m_data[x] = exp(-static_cast<double>(x) / static_cast<double>(Size * 2));
+			m_data[x] = exp(-static_cast<double>(x) / static_cast<double>(Size * 1));
 		}
 	}
 
@@ -330,6 +330,17 @@ public:
 		return result;
 	}
 
+	/**
+	 * @brief [0.0, 1.0)の範囲の乱数値を取得する
+	 * 
+	 * @return float [0.0, 1.0)
+	 */
+	[[nodiscard]] float nextFloat()
+	{
+		const value_type v = next();
+
+		return static_cast<float>((v >> 8) * 0x1.0p-24f);
+	}
 	/**
 	 * @brief [0.0, 1.0)の範囲の乱数値を取得する
 	 * 
@@ -1361,12 +1372,12 @@ struct MagicBit
 class AI
 {
 private:
-	inline static const int SearchTurn = 15;
+	inline static const int SearchTurn = 20;
 	inline static const int ChokudaiWidth = 3;
 	inline static const int SurveyTurn = 3;
 
 	inline static const EvaluateExp<SearchTurn> evaluateExp;
-	inline static const EvaluateExp<40> learnExp;
+	inline static const EvaluateExp<45> learnExp;
 	inline static const EvaluateExp<4> learnCastExp;
 
 	using MagicList = std::array<MagicBit, std::max(LearnSpell.size(), std::max(CastSpell.size(), BrewPostion.size()))>;
@@ -1409,24 +1420,40 @@ private:
 		double score = 0;
 
 		//各スペルによる増加分によってボーナス
-		score += learnCastExp[std::max(0, static_cast<int>(learnCastExp.size()) - data->delta.tier0 - 1)] * 0.3;
-		score += learnCastExp[std::max(0, static_cast<int>(learnCastExp.size()) - data->delta.tier1 - 1)] * 0.3;
-		score += learnCastExp[std::max(0, static_cast<int>(learnCastExp.size()) - data->delta.tier2 - 1)] * 0.3;
-		score += learnCastExp[std::max(0, static_cast<int>(learnCastExp.size()) - data->delta.tier3 - 1)] * 0.3;
+		// const static double learnCastExpScore[3] = {learnCastExp[3] * 0.3, learnCastExp[2] * 0.3, learnCastExp[1] * 0.3};
+		// if (data->delta.tier0 < learnCastExp.size())
+		// 	score += learnCastExpScore[data->delta.tier0];
+		// else
+		// 	score += 0.3;
+		// if (data->delta.tier1 < learnCastExp.size())
+		// 	score += learnCastExpScore[data->delta.tier1];
+		// else
+		// 	score += 0.3;
+		// if (data->delta.tier2 < learnCastExp.size())
+		// 	score += learnCastExpScore[data->delta.tier2];
+		// else
+		// 	score += 0.3;
+		// if (data->delta.tier3 < learnCastExp.size())
+		// 	score += learnCastExpScore[data->delta.tier3];
+		// else
+		// 	score += 0.3;
 
 		switch (operation)
 		{
 		case Object::Operation::Brew:
-			score += BrewPostion[index].price;
 
 			if (data->brewCount < Object::PotionLimit)
 			{
-				score += (SearchTurn - turn) / 10.0; //早期ボーナス
+				score += BrewPostion[index].price;
+				score += data->brewCount / 6.0; //早期ボーナス
 			}
 			else
 			{
 				score += data->inventory.getScore();
-				score += SearchTurn - turn; //早期ボーナス
+
+				//作成ターン数でできる相手のポーションの値段を加算して比較する
+				//逆転されるなら破棄、勝利なら最優先で作成
+				score += 100; //早期ボーナス
 			}
 			break;
 		case Object::Operation::Cast:
@@ -1437,8 +1464,7 @@ private:
 			//後半はあまり取得しないようにする
 			score += learnExp[std::min(learnExp.size() - 1, gameTurn + turn)];
 
-			//2ターン連続で取得する場合、下からとるようにする
-			score += (magic.getLearnTaxCount() - (magic.getLearnTomeIndex() * 1.05)) / 3.0;
+			score += (magic.getLearnTaxCount() - (magic.getLearnTomeIndex())) / 3.0;
 			break;
 		case Object::Operation::Rest:
 			break;
@@ -1453,7 +1479,7 @@ private:
 		score = (score * evaluateExp[turn]);
 
 		//乱数によるブレ
-		score = score * SearchTurn + xoshiro.nextDouble();
+		//score = score * SearchTurn + xoshiro.nextFloat();
 
 		return topScore + score;
 	}
@@ -1788,6 +1814,11 @@ private:
 		}
 	}
 
+	void thinkOpponent()
+	{
+		
+	}
+
 public:
 	AI()
 	{
@@ -1828,7 +1859,7 @@ public:
 			}
 		}
 
-		MilliSecTimer timer(std::chrono::milliseconds(45));
+		MilliSecTimer timer(std::chrono::milliseconds(40));
 
 		int loopCount = 0;
 
