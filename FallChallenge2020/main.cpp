@@ -21,6 +21,7 @@
 #include <array>
 
 #include <set>
+#include <unordered_set>
 #include <map>
 #include <queue>
 #include <deque>
@@ -1355,7 +1356,7 @@ private:
 	inline static const int ChokudaiWidth = 3;
 	inline static const int SurveyTurn = 8;
 
-	inline static const auto SearchMilliseconds = std::chrono::milliseconds{43};
+	inline static const auto SearchMilliseconds = std::chrono::milliseconds{40};
 	inline static const auto SurveyMilliseconds = std::chrono::milliseconds{5};
 
 	//inline static const int SurveyWidth = 5000;
@@ -1371,12 +1372,12 @@ private:
 	{
 		Tier inventory;
 		MagicList magicList;
-		CommandPack commands[Length];
-		double score = 0;
 		int price = 0;
 		int brewCount = 0;
+		double score = 0;
 		char bonus3 = 4;
 		char bonus1 = 4;
+		CommandPack commands[Length];
 	};
 
 	using DataPack = Data<SearchTurn> *;
@@ -1391,11 +1392,55 @@ private:
 			return a->score < b->score;
 		}
 	};
+	uint64_t hash(Data<SearchTurn> &data) const
+	{
+		//100バイト
+		static_assert(104 == (sizeof(data.inventory) + sizeof(data.magicList) + sizeof(data.price) + sizeof(data.brewCount)));
+		static_assert(128 <= sizeof(Data<SearchTurn>));
+
+		//8バイト*13
+		const auto val00 = reinterpret_cast<uint64_t *>(&data)[0];
+		const auto val01 = reinterpret_cast<uint64_t *>(&data)[1];
+		const auto val02 = reinterpret_cast<uint64_t *>(&data)[2];
+		const auto val03 = reinterpret_cast<uint64_t *>(&data)[3];
+		const auto val04 = reinterpret_cast<uint64_t *>(&data)[4];
+		const auto val05 = reinterpret_cast<uint64_t *>(&data)[5];
+		const auto val06 = reinterpret_cast<uint64_t *>(&data)[6];
+		const auto val07 = reinterpret_cast<uint64_t *>(&data)[7];
+		const auto val08 = reinterpret_cast<uint64_t *>(&data)[8];
+		const auto val09 = reinterpret_cast<uint64_t *>(&data)[9];
+		const auto val10 = reinterpret_cast<uint64_t *>(&data)[10];
+		const auto val11 = reinterpret_cast<uint64_t *>(&data)[11];
+		const auto val12 = reinterpret_cast<uint64_t *>(&data)[12];
+
+		constexpr uint64_t FNV_OFFSET_BASIS_64 = 14695981039346656037ull;
+		constexpr uint64_t FNV_PRIME_64 = 1099511628211ull;
+
+		uint64_t code = FNV_OFFSET_BASIS_64;
+
+		code = (FNV_PRIME_64 * code) ^ val00;
+		code = (FNV_PRIME_64 * code) ^ val01;
+		code = (FNV_PRIME_64 * code) ^ val02;
+		code = (FNV_PRIME_64 * code) ^ val03;
+		code = (FNV_PRIME_64 * code) ^ val04;
+		code = (FNV_PRIME_64 * code) ^ val05;
+		code = (FNV_PRIME_64 * code) ^ val06;
+		code = (FNV_PRIME_64 * code) ^ val07;
+		code = (FNV_PRIME_64 * code) ^ val08;
+		code = (FNV_PRIME_64 * code) ^ val09;
+		code = (FNV_PRIME_64 * code) ^ val10;
+		code = (FNV_PRIME_64 * code) ^ val11;
+		code = (FNV_PRIME_64 * code) ^ val12;
+
+		return code;
+	}
 
 	using PriorityQueue = std::priority_queue<DataPack, std::vector<DataPack>, DataLess>;
 
 	int gameTurn = 0;
 	int convertCastActionId[CastSpellSize];
+	std::unordered_set<uint64_t> unorderedTable[SearchTurn];
+
 	std::array<int, BrewPostionSize> opponentBrewTurn;
 	std::array<int, SearchTurn> opponentTurnScore;
 	int opponentInventoryScore;
@@ -1590,11 +1635,17 @@ private:
 
 				next->inventory.tier0 += std::min(Object::InventorySize - next->inventory.getSum(), magic.getLearnTaxCount() - index);
 
-				next->commands[turn] = CommandPack::Learn(LearnSpell[learnIndex].actionId);
+				const auto hs = hash(*next);
+				if (unorderedTable[turn].count(hs) == 0)
+				{
+					unorderedTable[turn].insert(hs);
 
-				next->score = (this->*evaluate)(turn, next, Object::Operation::Learn, magic, learnIndex);
+					next->commands[turn] = CommandPack::Learn(LearnSpell[learnIndex].actionId);
 
-				nextQueue.push(next);
+					next->score = (this->*evaluate)(turn, next, Object::Operation::Learn, magic, learnIndex);
+
+					nextQueue.push(next);
+				}
 			}
 		}
 	}
@@ -1654,17 +1705,23 @@ private:
 				next->price += BrewPostion[potionIndex].price + bonus;
 				next->brewCount += 1;
 
-				next->commands[turn] = CommandPack::Brew(BrewPostion[potionIndex].actionId);
-
-				next->score = (this->*evaluate)(turn, next, Object::Operation::Brew, magic, potionIndex);
-
-				if (next->brewCount < Object::PotionLimit)
+				const auto hs = hash(*next);
+				if (unorderedTable[turn].count(hs) == 0)
 				{
-					nextQueue.push(next);
-				}
-				else
-				{
-					lastQueue.push(next);
+					unorderedTable[turn].insert(hs);
+
+					next->commands[turn] = CommandPack::Brew(BrewPostion[potionIndex].actionId);
+
+					next->score = (this->*evaluate)(turn, next, Object::Operation::Brew, magic, potionIndex);
+
+					if (next->brewCount < Object::PotionLimit)
+					{
+						nextQueue.push(next);
+					}
+					else
+					{
+						lastQueue.push(next);
+					}
 				}
 			}
 		}
@@ -1690,11 +1747,17 @@ private:
 
 				next->inventory += CastSpell[castIndex].delta;
 
-				next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], 1);
+				const auto hs = hash(*next);
+				if (unorderedTable[turn].count(hs) == 0)
+				{
+					unorderedTable[turn].insert(hs);
 
-				next->score = (this->*evaluate)(turn, next, Object::Operation::Cast, magic, castIndex);
+					next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], 1);
 
-				nextQueue.push(next);
+					next->score = (this->*evaluate)(turn, next, Object::Operation::Cast, magic, castIndex);
+
+					nextQueue.push(next);
+				}
 
 				if (CastSpell[castIndex].repeatable)
 				{
@@ -1707,9 +1770,15 @@ private:
 						inv += CastSpell[castIndex].delta;
 						next2->inventory = inv;
 
-						next2->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], times);
+						const auto hs2 = hash(*next);
+						if (unorderedTable[turn].count(hs2) == 0)
+						{
+							unorderedTable[turn].insert(hs2);
 
-						nextQueue.push(next2);
+							next2->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], times);
+
+							nextQueue.push(next2);
+						}
 
 						times++;
 					}
@@ -1741,11 +1810,18 @@ private:
 				{
 					next->inventory += CastSpell[castIndex].delta;
 				}
-				next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], times);
 
-				next->score = (this->*evaluate)(turn, next, Object::Operation::Cast, magic, castIndex);
+				const auto hs = hash(*next);
+				if (unorderedTable[turn].count(hs) == 0)
+				{
+					unorderedTable[turn].insert(hs);
 
-				nextQueue.push(next);
+					next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], times);
+
+					next->score = (this->*evaluate)(turn, next, Object::Operation::Cast, magic, castIndex);
+
+					nextQueue.push(next);
+				}
 			}
 		}
 	}
@@ -1770,9 +1846,15 @@ private:
 
 		next->commands[turn] = CommandPack::Rest();
 
-		next->score = (this->*evaluate)(turn, next, Object::Operation::Rest, MagicBit{}, 0);
+		const auto hs = hash(*next);
+		if (unorderedTable[turn].count(hs) == 0)
+		{
+			unorderedTable[turn].insert(hs);
 
-		nextQueue.push(next);
+			next->score = (this->*evaluate)(turn, next, Object::Operation::Rest, MagicBit{}, 0);
+
+			nextQueue.push(next);
+		}
 	}
 
 	/**
@@ -1839,6 +1921,10 @@ private:
 	{
 		const auto &share = Share::Get();
 		opponentTurnScore.fill(share.getOpponentInventory().score);
+		forange(i, SearchTurn)
+		{
+			unorderedTable[i].clear();
+		}
 
 		std::array<PriorityQueue, SearchTurn + 1> chokudaiSearch;
 		{
@@ -1937,6 +2023,10 @@ public:
 			Pool::instance->clear();
 		}
 
+		forange(i, SearchTurn)
+		{
+			unorderedTable[i].clear();
+		}
 		std::array<PriorityQueue, SearchTurn + 1> chokudaiSearch;
 		{
 			DataPack init = new (Pool::instance->get()) Data<SearchTurn>();
