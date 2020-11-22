@@ -1235,14 +1235,14 @@ struct MagicBit
 
 		return ((magic & smask) >> shift);
 	}
-	inline int decLearnTomeIndex()
+	inline void decLearnTomeIndex()
 	{
 		const value_type shift = 12;
 		const value_type mask = 0x000F;
 		const value_type smask = (mask << shift);
 
 		const auto val = static_cast<value_type>((magic & smask) - static_cast<value_type>(0x0001 << shift));
-		return ((magic & (~smask)) | val);
+		magic = (magic & (~smask)) | val;
 	}
 
 	inline void setLearnTaxCount(const int taxCount)
@@ -1267,7 +1267,7 @@ struct MagicBit
 		const value_type shift = 8;
 		const value_type mask = 0x000F;
 		const value_type smask = (mask << shift);
-		
+
 		const auto val = static_cast<value_type>((magic & smask) + static_cast<value_type>(0x0001 << shift));
 		magic = (magic & (~smask)) | val;
 	}
@@ -1327,7 +1327,7 @@ struct MagicBit
 		const auto val = static_cast<value_type>(index) << shift;
 		magic = (magic & (~smask)) | val;
 	}
-	inline bool getBrewIndex() const
+	inline int getBrewIndex() const
 	{
 		const value_type shift = 3;
 		const value_type mask = 0x000F;
