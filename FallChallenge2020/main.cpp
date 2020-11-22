@@ -1396,7 +1396,7 @@ struct MagicBit
 	}
 };
 
-template <int SearchTurn = 22, int TimeLimit = 46, int MemoryLimit = 19>
+template <int SearchTurn = 22, int TimeLimit = 45, int MemoryLimit = 19>
 class AI
 {
 public:
