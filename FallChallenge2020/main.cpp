@@ -830,6 +830,10 @@ public:
 		}
 
 		const auto opponentCastsSize = share.opponentCasts.size();
+		const auto castsSize = share.casts.size();
+
+		const auto pLearns = share.learns;
+		const auto pBrews = share.brews;
 
 		share.casts.clear();
 		share.opponentCasts.clear();
@@ -892,7 +896,28 @@ public:
 		share.opponentOperation = Object::Operation::Cast;
 		if (share.opponentCasts.size() != opponentCastsSize)
 		{
-			share.opponentOperation = Object::Operation::Learn;
+			int match = 0;
+			for (const auto b : pLearns)
+			{
+				for (const auto n : share.learns)
+				{
+					if (b.actionId == n.actionId)
+					{
+						match++;
+					}
+				}
+			}
+
+			if (share.opponentCasts.size() != castsSize)
+			{
+				if (match < 5)
+					share.opponentOperation = Object::Operation::Learn;
+			}
+			else
+			{
+				if (match < 6)
+					share.opponentOperation = Object::Operation::Learn;
+			}
 		}
 		// const auto brewMatch = std::count_if(share.brews.begin(),share.brews.end(),[&](const Magic& brew){
 		// 	return std::any_of(bBrews.begin(), bBrews.end(), [&](const Magic& bBrew) {
@@ -905,6 +930,7 @@ public:
 		// 	});
 		// });
 
+		bool isBrew = false;
 		{
 			auto &inv = share.inventory;
 
@@ -928,6 +954,7 @@ public:
 			{
 				inv.score = price;
 				share.brewCount++;
+				isBrew = true;
 			}
 		}
 
@@ -955,7 +982,28 @@ public:
 				inv.score = price;
 				share.opponentBrewCount++;
 
-				share.opponentOperation = Object::Operation::Brew;
+				int match = 0;
+				for (const auto b : pBrews)
+				{
+					for (const auto n : share.brews)
+					{
+						if (b.actionId == n.actionId)
+						{
+							match++;
+						}
+					}
+				}
+
+				if (isBrew)
+				{
+					if (match < 4)
+						share.opponentOperation = Object::Operation::Brew;
+				}
+				else
+				{
+					if (match < 5)
+						share.opponentOperation = Object::Operation::Brew;
+				}
 			}
 		}
 
@@ -1348,21 +1396,19 @@ struct MagicBit
 	}
 };
 
+template <int SearchTurn = 22, int TimeLimit = 46, int MemoryLimit = 19>
 class AI
 {
-private:
-	inline static const int SearchTurn = 18;
+public:
+	//inline static const int SearchTurn = 22;
 	inline static const int ChokudaiWidth = 3;
-	inline static const int SurveyTurn = 8;
+	inline static const int SurveyTurn = 7;
 
-	inline static const auto SearchMilliseconds = std::chrono::milliseconds{45};
+	inline static const auto SearchMilliseconds = std::chrono::milliseconds{TimeLimit};
 	inline static const auto SurveyMilliseconds = std::chrono::milliseconds{3};
 
-	//inline static const int SurveyWidth = 5000;
-
 	inline static const EvaluateExp<SearchTurn> evaluateExp;
-	inline static const EvaluateExp<45> learnExp;
-	inline static const EvaluateExp<4> learnCastExp;
+	inline static const EvaluateExp<48> learnExp;
 
 	using MagicList = std::array<MagicBit, std::max(LearnSpellSize, std::max(CastSpellSize, BrewPostionSize))>;
 
@@ -1373,16 +1419,15 @@ private:
 		MagicList magicList;
 		CommandPack commands[Length];
 		double score = 0;
-		int price = 0;
-		int brewCount = 0;
+		short price = 0;
+		short brewCount = 0;
 		char bonus3 = 4;
 		char bonus1 = 4;
 	};
 
 	using DataPack = Data<SearchTurn> *;
-	using Pool = MemoryPool<Data<SearchTurn>, (1 << 19)>;
+	using Pool = MemoryPool<Data<SearchTurn>, (1 << MemoryLimit)>;
 	Data<SearchTurn> topData;
-	XoShiro128 xoshiro;
 
 	struct DataLess
 	{
@@ -1394,11 +1439,15 @@ private:
 
 	using PriorityQueue = std::priority_queue<DataPack, std::vector<DataPack>, DataLess>;
 
+private:
 	int gameTurn = 0;
 	int convertCastActionId[CastSpellSize];
 	std::array<int, BrewPostionSize> opponentBrewTurn;
 	std::array<int, SearchTurn> opponentTurnScore;
 	int opponentInventoryScore;
+	bool firstThink = false;
+
+	XoShiro128 xoshiro;
 
 	size_t learnAvailableIndex[Object::LearnSize] = {0};
 
@@ -1459,7 +1508,10 @@ private:
 			}
 			break;
 		case Object::Operation::Cast:
-			score += 1.0;
+			if (gameTurn + turn >= 6)
+				score += 1.0;
+			else
+				score -= 1.0;
 			break;
 		case Object::Operation::Learn:
 
@@ -1483,6 +1535,60 @@ private:
 
 		//乱数によるブレ
 		//score = score * SearchTurn + xoshiro.nextFloat();
+
+		return topScore + score;
+	}
+	/**
+	 * @brief 自分の評価関数(長期用)
+	 *
+	 * @param turn 探査しているターン数(相対値)
+	 * @param data 処理を行った後の状態
+	 * @param operation 処理内容
+	 * @param magic 処理を行ったスペルの状態
+	 * @param index 処理を行ったスペル
+	 * @return double 評価値
+	 */
+	inline double evaluateMyLong(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index)
+	{
+		const double topScore = data->score;
+		double score = 0;
+
+		switch (operation)
+		{
+		case Object::Operation::Brew:
+			if (data->brewCount < Object::PotionLimit)
+			{
+				score += data->price * ((SearchTurn - turn) / 10.0);
+			}
+			else
+			{
+				score += (1 << 14) * (SearchTurn - turn);
+			}
+			break;
+		case Object::Operation::Cast:
+			if (turn >= 6)
+				score += 1.0;
+			else
+				score -= 1.0;
+			break;
+		case Object::Operation::Learn:
+
+			score += learnExp[std::min(learnExp.size() - 1, gameTurn + turn)];
+			break;
+		case Object::Operation::Rest:
+			break;
+		case Object::Operation::Wait:
+			break;
+
+		default:
+			break;
+		}
+
+		//経過ターンによる補正
+		//score = (score * evaluateExp[turn]);
+
+		//乱数によるブレ
+		score = score * 10 + xoshiro.nextFloat();
 
 		return topScore + score;
 	}
@@ -1885,13 +1991,19 @@ private:
 					}
 					else
 					{
-						forange(i, top->magicList.size())
+						forange(i, BrewPostionSize)
 						{
-							const auto &magic = top->magicList[i];
+							searchBrew(i, top->magicList[i], turn, top, chokudaiSearch[turn + 1], chokudaiSearch[SearchTurn]);
+						}
 
-							searchBrew(i, magic, turn, top, chokudaiSearch[turn + 1], chokudaiSearch[SearchTurn]);
-							searchLearn(i, magic, turn, top, chokudaiSearch[turn + 1]);
-							searchCast(i, magic, turn, top, chokudaiSearch[turn + 1]);
+						forange(i, LearnSpellSize)
+						{
+							searchLearn(i, top->magicList[i], turn, top, chokudaiSearch[turn + 1]);
+						}
+
+						forange(i, CastSpellSize)
+						{
+							searchCast(i, top->magicList[i], turn, top, chokudaiSearch[turn + 1]);
 						}
 
 						searchRest(turn, top, chokudaiSearch[turn + 1]);
@@ -1904,7 +2016,7 @@ private:
 
 		forstep(turn, 1, SearchTurn)
 		{
-			const auto max = std::max_element(opponentBrewTurn.cbegin(), opponentBrewTurn.cend(), [turn](const decltype(opponentBrewTurn)::value_type a, const decltype(opponentBrewTurn)::value_type b) {
+			const auto max = std::max_element(opponentBrewTurn.cbegin(), opponentBrewTurn.cend(), [turn](const int a, const int b) {
 				return (a == turn ? BrewPostion[a].price : 0) < (b == turn ? BrewPostion[b].price : 0);
 			});
 			if ((*max) == std::numeric_limits<int>::max())
@@ -1924,6 +2036,21 @@ public:
 		Pool::Create();
 	}
 
+	template <int S, int T, int M>
+	void setTopData(const AI<S, T, M> &ai)
+	{
+		static_assert(S >= SearchTurn);
+
+		errerLine(std::to_string(ai.topData.score));
+
+		forange(i, SearchTurn)
+		{
+			topData.commands[i] = ai.topData.commands[i];
+			//errerLine(topData.commands[i].getCommand());
+		}
+		firstThink = true;
+	}
+
 	std::string think()
 	{
 		Pool::instance->clear();
@@ -1931,6 +2058,20 @@ public:
 		const auto &share = Share::Get();
 		gameTurn = share.getTurn();
 		opponentInventoryScore = share.getOpponentInventory().inv.getScore();
+
+		if (firstThink)
+		{
+			if (share.getOpponentOperation() == Object::Operation::Cast)
+			{
+				const auto com = topData.commands[gameTurn];
+				if (com.getActionId() != 0)
+					return com.getCommand();
+				else
+					firstThink = false;
+			}
+			else
+				firstThink = false;
+		}
 
 		{
 			thinkOpponent();
@@ -1953,7 +2094,10 @@ public:
 			init->bonus3 = brews[0].taxCount;
 			init->bonus1 = brews[1].taxCount;
 
-			evaluate = &AI::evaluateMy;
+			if (gameTurn == 0)
+				evaluate = &AI::evaluateMyLong;
+			else
+				evaluate = &AI::evaluateMy;
 
 			if (share.getOpponentOperation() == Object::Operation::Cast)
 			{
@@ -1972,6 +2116,7 @@ public:
 		MilliSecTimer timer(SearchMilliseconds);
 
 		int loopCount = 0;
+		int learnTurnLimit = std::max(3, 10 - gameTurn);
 
 		timer.start();
 		while (!timer.check())
@@ -1987,13 +2132,22 @@ public:
 					const auto top = chokudaiSearch[turn].top();
 					chokudaiSearch[turn].pop();
 
-					forange(i, top->magicList.size())
+					forange(i, BrewPostionSize)
 					{
-						const auto &magic = top->magicList[i];
+						searchBrew(i, top->magicList[i], turn, top, chokudaiSearch[turn + 1], chokudaiSearch[SearchTurn]);
+					}
 
-						searchBrew(i, magic, turn, top, chokudaiSearch[turn + 1], chokudaiSearch[SearchTurn]);
-						searchLearn(i, magic, turn, top, chokudaiSearch[turn + 1]);
-						searchCast(i, magic, turn, top, chokudaiSearch[turn + 1]);
+					if (turn < learnTurnLimit)
+					{
+						forange(i, LearnSpellSize)
+						{
+							searchLearn(i, top->magicList[i], turn, top, chokudaiSearch[turn + 1]);
+						}
+					}
+
+					forange(i, CastSpellSize)
+					{
+						searchCast(i, top->magicList[i], turn, top, chokudaiSearch[turn + 1]);
 					}
 
 					searchRest(turn, top, chokudaiSearch[turn + 1]);
@@ -2062,7 +2216,22 @@ int main()
 
 	Stopwatch sw;
 
-	AI ai;
+	AI<50, 900, 21> aiFirst;
+	AI<> ai;
+
+	{
+		input.loop();
+
+		sw.start();
+		const auto &coms = aiFirst.think();
+		sw.stop();
+
+		ai.setTopData<>(aiFirst);
+
+		errerLine(sw.toString_ms());
+
+		std::cout << coms << " " << sw.toString_ms() << std::endl;
+	}
 
 	while (input.loop())
 	{
