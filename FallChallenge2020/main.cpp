@@ -256,7 +256,7 @@ public:
 		}
 	}
 
-	void release(Type *p)
+	inline void release(Type *p)
 	{
 		addr.push_back(p);
 	}
@@ -277,7 +277,7 @@ public:
 		}
 	}
 
-	[[nodiscard]] double operator[](const size_t index) const
+	[[nodiscard]] inline double operator[](const size_t index) const
 	{
 		return m_data[index];
 	}
@@ -412,12 +412,12 @@ struct Tier
 		return Tier(t0, t1, t2, t3);
 	}
 
-	value_type getSum() const
+	inline value_type getSum() const
 	{
 		return tier0 + tier1 + tier2 + tier3;
 	}
 
-	value_type getScore() const
+	inline value_type getScore() const
 	{
 		return tier1 + tier2 + tier3;
 	}
@@ -1115,16 +1115,16 @@ public:
 		}
 	}
 
-	Object::Operation getOperation() const
+	inline Object::Operation getOperation() const
 	{
 		return operation;
 	}
-	int getActionId() const
+	inline int getActionId() const
 	{
 		return static_cast<int>(actionId);
 	}
 
-	std::tuple<Object::Operation, unsigned char, unsigned char> getParam() const
+	inline std::tuple<Object::Operation, unsigned char, unsigned char> getParam() const
 	{
 		return std::make_tuple(operation, actionId, times);
 	}
@@ -1218,7 +1218,7 @@ struct MagicBit
 	//      |
 	//      +Learn:Index(0x000F << 12)
 
-	void setLearnTomeIndex(const int tomeIndex)
+	inline void setLearnTomeIndex(const int tomeIndex)
 	{
 		const value_type shift = 12;
 		const value_type mask = 0x000F;
@@ -1227,7 +1227,7 @@ struct MagicBit
 		const auto val = static_cast<value_type>((tomeIndex & mask) << shift);
 		magic = (magic & (~smask)) | val;
 	}
-	int getLearnTomeIndex() const
+	inline int getLearnTomeIndex() const
 	{
 		const value_type shift = 12;
 		const value_type mask = 0x000F;
@@ -1235,8 +1235,17 @@ struct MagicBit
 
 		return ((magic & smask) >> shift);
 	}
+	inline int decLearnTomeIndex()
+	{
+		const value_type shift = 12;
+		const value_type mask = 0x000F;
+		const value_type smask = (mask << shift);
 
-	void setLearnTaxCount(const int taxCount)
+		const auto val = static_cast<value_type>((magic & smask) - static_cast<value_type>(0x0001 << shift));
+		return ((magic & (~smask)) | val);
+	}
+
+	inline void setLearnTaxCount(const int taxCount)
 	{
 		const value_type shift = 8;
 		const value_type mask = 0x000F;
@@ -1245,7 +1254,7 @@ struct MagicBit
 		const auto val = static_cast<value_type>((taxCount & mask) << shift);
 		magic = (magic & (~smask)) | val;
 	}
-	int getLearnTaxCount() const
+	inline int getLearnTaxCount() const
 	{
 		const value_type shift = 8;
 		const value_type mask = 0x000F;
@@ -1253,8 +1262,17 @@ struct MagicBit
 
 		return ((magic & smask) >> shift);
 	}
+	inline void incLearnTaxCount()
+	{
+		const value_type shift = 8;
+		const value_type mask = 0x000F;
+		const value_type smask = (mask << shift);
+		
+		const auto val = static_cast<value_type>((magic & smask) + static_cast<value_type>(0x0001 << shift));
+		magic = (magic & (~smask)) | val;
+	}
 
-	void setLearnAvailable(const bool available)
+	inline void setLearnAvailable(const bool available)
 	{
 		const value_type shift = 7;
 		const value_type mask = 0x0001;
@@ -1263,16 +1281,16 @@ struct MagicBit
 		const auto val = static_cast<value_type>(available) << shift;
 		magic = (magic & (~smask)) | val;
 	}
-	bool getLearnAvailable() const
+	inline bool getLearnAvailable() const
 	{
 		const value_type shift = 7;
 		const value_type mask = 0x0001;
 		const value_type smask = (mask << shift);
 
-		return ((magic & smask) >> shift);
+		return ((magic & smask) > 0);
 	}
 
-	void setLearn(const int tomeIndex, const int taxCount, const bool value)
+	inline void setLearn(const int tomeIndex, const int taxCount, const bool value)
 	{
 		value_type val = 0;
 		val = (tomeIndex & 0x000F);
@@ -1282,7 +1300,7 @@ struct MagicBit
 		magic = (magic & (~(0x03FF << 7))) | (val << 7);
 	}
 
-	void setBrewAvailable(const bool available)
+	inline void setBrewAvailable(const bool available)
 	{
 		const value_type shift = 2;
 		const value_type mask = 0x0001;
@@ -1291,16 +1309,16 @@ struct MagicBit
 		const auto val = static_cast<value_type>(available) << shift;
 		magic = (magic & (~smask)) | val;
 	}
-	bool getBrewAvailable() const
+	inline bool getBrewAvailable() const
 	{
 		const value_type shift = 2;
 		const value_type mask = 0x0001;
 		const value_type smask = (mask << shift);
 
-		return ((magic & smask) >> shift);
+		return ((magic & smask) > 0);
 	}
 
-	void setBrewIndex(const int index)
+	inline void setBrewIndex(const int index)
 	{
 		const value_type shift = 3;
 		const value_type mask = 0x000F;
@@ -1309,7 +1327,7 @@ struct MagicBit
 		const auto val = static_cast<value_type>(index) << shift;
 		magic = (magic & (~smask)) | val;
 	}
-	bool getBrewIndex() const
+	inline bool getBrewIndex() const
 	{
 		const value_type shift = 3;
 		const value_type mask = 0x000F;
@@ -1317,8 +1335,17 @@ struct MagicBit
 
 		return ((magic & smask) >> shift);
 	}
+	inline void decBrewIndex()
+	{
+		const value_type shift = 3;
+		const value_type mask = 0x000F;
+		const value_type smask = (mask << shift);
 
-	void setCastCastable(const bool castable)
+		const auto val = static_cast<value_type>((magic & smask) - static_cast<value_type>(0x0001 << shift));
+		magic = (magic & (~smask)) | val;
+	}
+
+	inline void setCastCastable(const bool castable)
 	{
 		const value_type shift = 1;
 		const value_type mask = 0x0001;
@@ -1327,16 +1354,16 @@ struct MagicBit
 		const auto val = static_cast<value_type>(castable) << shift;
 		magic = (magic & (~smask)) | val;
 	}
-	bool getCastCastable() const
+	inline bool getCastCastable() const
 	{
 		const value_type shift = 1;
 		const value_type mask = 0x0001;
 		const value_type smask = (mask << shift);
 
-		return ((magic & smask) >> shift);
+		return ((magic & smask) > 0);
 	}
 
-	void setCastAvailable(const bool available)
+	inline void setCastAvailable(const bool available)
 	{
 		const value_type shift = 0;
 		const value_type mask = 0x0001;
@@ -1345,22 +1372,22 @@ struct MagicBit
 		const auto val = static_cast<value_type>(available) << shift;
 		magic = (magic & (~smask)) | val;
 	}
-	bool getCastAvailable() const
+	inline bool getCastAvailable() const
 	{
 		const value_type shift = 0;
 		const value_type mask = 0x0001;
 		const value_type smask = (mask << shift);
 
-		return ((magic & smask) >> shift);
+		return ((magic & smask) > 0);
 	}
 
-	void setCast(const bool castable, const bool available)
+	inline void setCast(const bool castable, const bool available)
 	{
 		value_type val = ((static_cast<value_type>(castable) << 1) | static_cast<value_type>(available));
 
 		magic = (magic & (~(0x0003 << 0))) | (val << 0);
 	}
-	bool getCastable() const
+	inline bool getCastable() const
 	{
 		const value_type mask = 0x0003;
 
@@ -1374,6 +1401,10 @@ private:
 	inline static const int SearchTurn = 20;
 	inline static const int ChokudaiWidth = 3;
 	inline static const int SurveyTurn = 8;
+
+	inline static const auto SearchMilliseconds = std::chrono::milliseconds{35};
+	inline static const auto SurveyMilliseconds = std::chrono::milliseconds{10};
+
 	//inline static const int SurveyWidth = 5000;
 
 	inline static const EvaluateExp<SearchTurn> evaluateExp;
@@ -1429,7 +1460,7 @@ private:
 	 * @param index ˆ—‚ðs‚Á‚½ƒXƒyƒ‹
 	 * @return double •]‰¿’l
 	 */
-	double evaluateMy(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index)
+	inline double evaluateMy(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index)
 	{
 		const double topScore = data->score;
 		double score = 0;
@@ -1498,7 +1529,7 @@ private:
 
 		return topScore + score;
 	}
-	double evaluateOpponent(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index)
+	inline double evaluateOpponent(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index)
 	{
 		const double topScore = data->score;
 		double score = 0;
@@ -1524,19 +1555,6 @@ private:
 		}
 
 		return topScore + score;
-	}
-
-	Magic learn2cast(const Magic &learn) const
-	{
-		Magic cast = learn;
-
-		cast.tomeIndex = -1;
-		cast.taxCount = -1;
-		cast.castable = true;
-
-		cast.repeatable = LearnSpell[learn.actionId].repeatable;
-
-		return cast;
 	}
 
 	MagicList convertInputData(const std::vector<Magic> &casts)
@@ -1580,7 +1598,7 @@ private:
 	 * @param top ’T¸ƒm[ƒh
 	 * @param nextQueue ŽŸ‚Ì’T¸ƒLƒ…[
 	 */
-	void searchLearn(const size_t learnIndex, const MagicBit magic, const size_t turn, const DataPack top, PriorityQueue &nextQueue)
+	inline void searchLearn(const size_t learnIndex, const MagicBit magic, const size_t turn, const DataPack top, PriorityQueue &nextQueue)
 	{
 		if (magic.getLearnAvailable())
 		{
@@ -1600,12 +1618,12 @@ private:
 						if (idx > index)
 						{
 							//ƒCƒ“ƒfƒbƒNƒXŒ¸ŽZ
-							m.setLearnTomeIndex(m.getLearnTomeIndex() - 1);
+							m.decLearnTomeIndex();
 						}
 						else
 						{
 							//æ“Ç‚ÝÅ‰ÁŽZ
-							m.setLearnTaxCount(m.getLearnTaxCount() + 1);
+							m.incLearnTaxCount();
 						}
 					}
 				});
@@ -1628,7 +1646,7 @@ private:
 	 * @param top ’T¸ƒm[ƒh
 	 * @param nextQueue ŽŸ‚Ì’T¸ƒLƒ…[
 	 */
-	void searchBrew(const size_t potionIndex, const MagicBit magic, const size_t turn, const DataPack top, PriorityQueue &nextQueue, PriorityQueue &lastQueue)
+	inline void searchBrew(const size_t potionIndex, const MagicBit magic, const size_t turn, const DataPack top, PriorityQueue &nextQueue, PriorityQueue &lastQueue)
 	{
 		if (magic.getBrewAvailable())
 		{
@@ -1645,7 +1663,7 @@ private:
 						if (idx > index)
 						{
 							//ƒCƒ“ƒfƒbƒNƒXŒ¸ŽZ
-							m.setBrewIndex(m.getBrewIndex() - 1);
+							m.decBrewIndex();
 						}
 					}
 				});
@@ -1700,7 +1718,7 @@ private:
 	 * @param top ’T¸ƒm[ƒh
 	 * @param nextQueue ŽŸ‚Ì’T¸ƒLƒ…[
 	 */
-	void searchCast(const size_t castIndex, const MagicBit magic, const size_t turn, const DataPack top, PriorityQueue &nextQueue)
+	inline void searchCast(const size_t castIndex, const MagicBit magic, const size_t turn, const DataPack top, PriorityQueue &nextQueue)
 	{
 		if (magic.getCastable())
 		{
@@ -1749,7 +1767,7 @@ private:
 	 * @param top ’T¸ƒm[ƒh
 	 * @param nextQueue ŽŸ‚Ì’T¸ƒLƒ…[
 	 */
-	void searchCast(const size_t castIndex, const int times, const MagicBit magic, const size_t turn, const DataPack top, PriorityQueue &nextQueue)
+	inline void searchCast(const size_t castIndex, const int times, const MagicBit magic, const size_t turn, const DataPack top, PriorityQueue &nextQueue)
 	{
 		if (magic.getCastable())
 		{
@@ -1780,7 +1798,7 @@ private:
 	 * @param top ’T¸ƒm[ƒh
 	 * @param nextQueue ŽŸ‚Ì’T¸ƒLƒ…[
 	 */
-	void searchRest(const size_t turn, const DataPack top, PriorityQueue &nextQueue)
+	inline void searchRest(const size_t turn, const DataPack top, PriorityQueue &nextQueue)
 	{
 		DataPack next = new (Pool::instance->get()) Data<SearchTurn>(*top);
 
@@ -1886,9 +1904,9 @@ private:
 
 		opponentBrewTurn.fill(std::numeric_limits<int>::max());
 
-		MilliSecTimer timer(std::chrono::milliseconds(10));
+		MilliSecTimer timer(SurveyMilliseconds);
 		timer.start();
-		while (!timer)
+		while (!timer.check())
 		{
 			forange(turn, SurveyTurn)
 			{
@@ -1991,12 +2009,12 @@ public:
 			}
 		}
 
-		MilliSecTimer timer(std::chrono::milliseconds(35));
+		MilliSecTimer timer(SearchMilliseconds);
 
 		int loopCount = 0;
 
 		timer.start();
-		while (!timer)
+		while (!timer.check())
 		{
 			loopCount++;
 			forange(turn, SearchTurn)
