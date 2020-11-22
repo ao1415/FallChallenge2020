@@ -1442,6 +1442,7 @@ public:
 private:
 	int gameTurn = 0;
 	int convertCastActionId[CastSpellSize];
+	bool strongCastSet[CastSpellSize];
 	std::array<int, BrewPostionSize> opponentBrewTurn;
 	std::array<int, SearchTurn> opponentTurnScore;
 	int opponentInventoryScore;
@@ -1498,7 +1499,7 @@ private:
 				{
 					//勝ち確定なのでインフレさせる
 					//※インベントリの状態によっては負ける
-					score += (1 << 14) * (SearchTurn - turn);
+					score += (1 << 16) * (SearchTurn - turn);
 				}
 				else
 				{
@@ -1508,7 +1509,7 @@ private:
 			}
 			break;
 		case Object::Operation::Cast:
-			if (gameTurn + turn >= 6)
+			if (gameTurn + turn >= 4)
 				score += 1.0;
 			else
 				score -= 1.0;
@@ -1520,6 +1521,9 @@ private:
 			//score += learnExp[std::min(learnExp.size() - 1, turn)];
 
 			score += (magic.getLearnTaxCount() - (magic.getLearnTomeIndex())) / 3.0;
+
+			if (strongCastSet[index])
+				score += 1.0;
 			break;
 		case Object::Operation::Rest:
 			break;
@@ -1556,17 +1560,11 @@ private:
 		switch (operation)
 		{
 		case Object::Operation::Brew:
-			if (data->brewCount < Object::PotionLimit)
-			{
-				score += data->price * ((SearchTurn - turn) / 10.0);
-			}
-			else
-			{
-				score += (1 << 14) * (SearchTurn - turn);
-			}
+			score += data->price * ((SearchTurn - turn) / 10.0);
+			score += data->brewCount * (SearchTurn - turn);
 			break;
 		case Object::Operation::Cast:
-			if (turn >= 6)
+			if (turn >= 8)
 				score += 1.0;
 			else
 				score -= 1.0;
@@ -1574,6 +1572,7 @@ private:
 		case Object::Operation::Learn:
 
 			score += learnExp[std::min(learnExp.size() - 1, gameTurn + turn)];
+			score += -magic.getLearnTomeIndex();
 			break;
 		case Object::Operation::Rest:
 			break;
@@ -1585,7 +1584,7 @@ private:
 		}
 
 		//経過ターンによる補正
-		//score = (score * evaluateExp[turn]);
+		score = (score * evaluateExp[std::max(0, static_cast<int>(turn) - 8)]);
 
 		//乱数によるブレ
 		score = score * 10 + xoshiro.nextFloat();
@@ -2042,10 +2041,17 @@ public:
 		static_assert(S >= SearchTurn);
 
 		errerLine(std::to_string(ai.topData.score));
+		std::fill(strongCastSet, strongCastSet + CastSpellSize, false);
 
 		forange(i, SearchTurn)
 		{
-			topData.commands[i] = ai.topData.commands[i];
+			const auto &topCom = ai.topData.commands[i];
+			topData.commands[i] = topCom;
+
+			if (topCom.getOperation() == Object::Operation::Learn)
+			{
+				strongCastSet[topCom.getActionId()] = true;
+			}
 			//errerLine(topData.commands[i].getCommand());
 		}
 		firstThink = true;
@@ -2216,7 +2222,7 @@ int main()
 
 	Stopwatch sw;
 
-	AI<50, 900, 21> aiFirst;
+	AI<35, 980, 21> aiFirst;
 	AI<> ai;
 
 	{
