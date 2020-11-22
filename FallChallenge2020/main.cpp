@@ -1351,12 +1351,12 @@ struct MagicBit
 class AI
 {
 private:
-	inline static const int SearchTurn = 20;
+	inline static const int SearchTurn = 18;
 	inline static const int ChokudaiWidth = 3;
 	inline static const int SurveyTurn = 8;
 
-	inline static const auto SearchMilliseconds = std::chrono::milliseconds{43};
-	inline static const auto SurveyMilliseconds = std::chrono::milliseconds{5};
+	inline static const auto SearchMilliseconds = std::chrono::milliseconds{45};
+	inline static const auto SurveyMilliseconds = std::chrono::milliseconds{3};
 
 	//inline static const int SurveyWidth = 5000;
 
@@ -1449,7 +1449,7 @@ private:
 				{
 					//勝ち確定なのでインフレさせる
 					//※インベントリの状態によっては負ける
-					score += 999999;
+					score += (1 << 14) * (SearchTurn - turn);
 				}
 				else
 				{
