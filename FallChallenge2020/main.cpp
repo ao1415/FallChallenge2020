@@ -1402,8 +1402,8 @@ private:
 	inline static const int ChokudaiWidth = 3;
 	inline static const int SurveyTurn = 8;
 
-	inline static const auto SearchMilliseconds = std::chrono::milliseconds{35};
-	inline static const auto SurveyMilliseconds = std::chrono::milliseconds{10};
+	inline static const auto SearchMilliseconds = std::chrono::milliseconds{43};
+	inline static const auto SurveyMilliseconds = std::chrono::milliseconds{5};
 
 	//inline static const int SurveyWidth = 5000;
 
@@ -1417,7 +1417,6 @@ private:
 	struct Data
 	{
 		Tier inventory;
-		Tier delta;
 		MagicList magicList;
 		std::array<CommandPack, Length> commands;
 		double score = 0;
@@ -1428,7 +1427,7 @@ private:
 	};
 
 	using DataPack = Data<SearchTurn> *;
-	using Pool = MemoryPool<Data<SearchTurn>, (1 << 18)>;
+	using Pool = MemoryPool<Data<SearchTurn>, (1 << 19)>;
 	Data<SearchTurn> topData;
 	XoShiro128 xoshiro;
 
@@ -1478,7 +1477,9 @@ private:
 				}
 				else
 				{
-					score += data->price * 0.9;
+					//相手より遅い場合は減点
+					//score += data->price * evaluateExp[turn - opponentTurn];
+					score += data->price * 0.95;
 				}
 
 				//score += data->brewCount / 6.0; //早期ボーナス
@@ -1509,6 +1510,7 @@ private:
 
 			//後半はあまり取得しないようにする
 			score += learnExp[std::min(learnExp.size() - 1, gameTurn + turn)];
+			//score += learnExp[std::min(learnExp.size() - 1, turn)];
 
 			score += (magic.getLearnTaxCount() - (magic.getLearnTomeIndex())) / 3.0;
 			break;
@@ -1608,7 +1610,6 @@ private:
 
 				next->magicList[learnIndex].setCast(true, true);
 				next->magicList[learnIndex].setLearnAvailable(false);
-				next->delta += LearnSpellPlus[learnIndex];
 
 				const auto index = magic.getLearnTomeIndex();
 				std::for_each(next->magicList.begin(), next->magicList.end(), [index](decltype(next->magicList)::reference m) {
@@ -1669,7 +1670,6 @@ private:
 				});
 
 				next->inventory += BrewPostion[potionIndex].delta;
-				next->delta += LearnSpellPlus[potionIndex];
 
 				const int bonus = [&]() {
 					if (index == 0 && next->bonus3 > 0)
@@ -2056,24 +2056,32 @@ public:
 			std::string debugMes = "";
 
 			int setTurn = 0;
+			bool add = false;
 			forange(i, topData.commands.size())
 			{
 				if (topData.commands[i].getOperation() == Object::Operation::Brew)
 				{
-					debugMes += topData.commands[i].debugMessage() + "@" + std::to_string(setTurn) + " ";
+					debugMes += topData.commands[i].debugMessage() + std::to_string(setTurn) + "-";
+					add = true;
 				}
 				setTurn++;
 			}
-
+			if (add)
+				debugMes.pop_back();
+				
 			//debugMes += "P" + std::to_string(topData.price) + "," + std::to_string(loopCount);
-			debugMes += ":";
+			debugMes += " ";
+			add = false;
 			forange(i, opponentBrewTurn.size())
 			{
 				if (opponentBrewTurn[i] != std::numeric_limits<int>::max())
 				{
-					debugMes += std::to_string(i + BrewPostion.front().actionId) + "@" + std::to_string(opponentBrewTurn[i]) + " ";
+					debugMes += std::to_string(i + BrewPostion.front().actionId) + std::to_string(opponentBrewTurn[i]) + "-";
+					add = true;
 				}
 			}
+			if (add)
+				debugMes.pop_back();
 
 			return com + " " + debugMes;
 		}
