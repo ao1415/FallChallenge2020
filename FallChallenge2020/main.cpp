@@ -1134,7 +1134,7 @@ public:
 		switch (operation)
 		{
 		case Object::Operation::Brew:
-			return "B" + std::to_string(actionId);
+			return "" + std::to_string(actionId);
 		case Object::Operation::Cast:
 			return "" + std::to_string(actionId) + (times == 1 ? "" : std::to_string(times));
 		case Object::Operation::Learn:
@@ -1414,9 +1414,21 @@ private:
 	int gameTurn = 0;
 	std::array<int, CastSpell.size()> convertCastActionId;
 	std::array<int, BrewPostion.size()> opponentBrewTurn;
+	std::array<int, SearchTurn> opponentTurnScore;
+	int opponentInventoryScore;
 
 	double (AI::*evaluate)(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index);
 
+	/**
+	 * @brief 自分の評価関数
+	 * 
+	 * @param turn 探査しているターン数(相対値)
+	 * @param data 処理を行った後の状態
+	 * @param operation 処理内容
+	 * @param magic 処理を行ったスペルの状態
+	 * @param index 処理を行ったスペル
+	 * @return double 評価値
+	 */
 	double evaluateMy(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index)
 	{
 		const double topScore = data->score;
@@ -1425,28 +1437,38 @@ private:
 		switch (operation)
 		{
 		case Object::Operation::Brew:
-
 			if (data->brewCount < Object::PotionLimit)
 			{
 				const auto opponentTurn = opponentBrewTurn[index];
+
 				if (turn <= opponentTurn)
 				{
 					score += data->price;
 				}
 				else
 				{
-					score += data->price;
+					score += data->price * 0.9;
 				}
-				
+
 				//score += data->brewCount / 6.0; //早期ボーナス
 			}
 			else
 			{
-				score += data->inventory.getScore();
+				//data->priceは合計値
+				const int pm = data->price + data->inventory.getScore();
+				const int ois = turn == 0 ? opponentInventoryScore : 0;
 
-				//作成ターン数でできる相手のポーションの値段を加算して比較する
-				//逆転されるなら破棄、勝利なら最優先で作成
-				score += 100; //早期ボーナス
+				if (pm >= opponentTurnScore[turn] + ois)
+				{
+					//勝ち確定なのでインフレさせる
+					//※インベントリの状態によっては負ける
+					score += 999999;
+				}
+				else
+				{
+					//負け確定なので何もしない
+					score += 0.0;
+				}
 			}
 			break;
 		case Object::Operation::Cast:
@@ -1838,6 +1860,7 @@ private:
 	void thinkOpponent()
 	{
 		const auto &share = Share::Get();
+		opponentTurnScore.fill(share.getOpponentInventory().score);
 
 		std::array<PriorityQueue, SearchTurn + 1> chokudaiSearch;
 		{
@@ -1900,6 +1923,21 @@ private:
 				}
 			}
 		}
+
+		forstep(turn, 1, SearchTurn)
+		{
+			const auto max = std::max_element(opponentBrewTurn.cbegin(), opponentBrewTurn.cend(), [turn](const decltype(opponentBrewTurn)::value_type a, const decltype(opponentBrewTurn)::value_type b) {
+				return (a == turn ? BrewPostion[a].price : 0) < (b == turn ? BrewPostion[b].price : 0);
+			});
+			if ((*max) == std::numeric_limits<int>::max())
+			{
+				opponentTurnScore[turn] = opponentTurnScore[turn - 1];
+			}
+			else
+			{
+				opponentTurnScore[turn] = std::max(opponentTurnScore[turn - 1], opponentTurnScore[turn] + (*max));
+			}
+		}
 	}
 
 public:
@@ -1914,6 +1952,7 @@ public:
 
 		const auto &share = Share::Get();
 		gameTurn = share.getTurn();
+		opponentInventoryScore = share.getOpponentInventory().inv.getScore();
 
 		{
 			thinkOpponent();
@@ -2008,8 +2047,8 @@ public:
 				setTurn++;
 			}
 
-			debugMes += "P" + std::to_string(topData.price) + "," + std::to_string(loopCount);
-			debugMes = "";
+			//debugMes += "P" + std::to_string(topData.price) + "," + std::to_string(loopCount);
+			debugMes += ":";
 			forange(i, opponentBrewTurn.size())
 			{
 				if (opponentBrewTurn[i] != std::numeric_limits<int>::max())
