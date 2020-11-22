@@ -1374,7 +1374,7 @@ class AI
 private:
 	inline static const int SearchTurn = 20;
 	inline static const int ChokudaiWidth = 3;
-	inline static const int SurveyTurn = 3;
+	inline static const int SurveyTurn = 10;
 
 	inline static const EvaluateExp<SearchTurn> evaluateExp;
 	inline static const EvaluateExp<45> learnExp;
@@ -1414,7 +1414,9 @@ private:
 	int gameTurn = 0;
 	std::array<int, CastSpell.size()> convertCastActionId;
 
-	double evaluate(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index)
+	double (AI::*evaluate)(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index);
+
+	double evaluateMy(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index)
 	{
 		const double topScore = data->score;
 		double score = 0;
@@ -1535,9 +1537,9 @@ private:
 	 * @param magic スペル付加情報
 	 * @param turn 探査ターン
 	 * @param top 探査ノード
-	 * @param chokudaiSearch 探査キュー配列
+	 * @param nextQueue 次の探査キュー
 	 */
-	void searchLearn(const size_t learnIndex, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
+	void searchLearn(const size_t learnIndex, const MagicBit magic, const size_t turn, const DataPack top, PriorityQueue &nextQueue)
 	{
 		if (magic.getLearnAvailable())
 		{
@@ -1570,9 +1572,9 @@ private:
 
 				next->commands[turn] = CommandPack::Learn(LearnSpell[learnIndex].actionId);
 
-				next->score = evaluate(turn, next, Object::Operation::Learn, magic, learnIndex);
+				next->score = (this->*evaluate)(turn, next, Object::Operation::Learn, magic, learnIndex);
 
-				chokudaiSearch[turn + 1].push(next);
+				nextQueue.push(next);
 			}
 		}
 	}
@@ -1583,9 +1585,9 @@ private:
 	 * @param magic スペル付加情報
 	 * @param turn 探査ターン
 	 * @param top 探査ノード
-	 * @param chokudaiSearch 探査キュー配列
+	 * @param nextQueue 次の探査キュー
 	 */
-	void searchBrew(const size_t potionIndex, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
+	void searchBrew(const size_t potionIndex, const MagicBit magic, const size_t turn, const DataPack top, PriorityQueue &nextQueue, PriorityQueue &lastQueue)
 	{
 		if (magic.getBrewAvailable())
 		{
@@ -1635,15 +1637,15 @@ private:
 
 				next->commands[turn] = CommandPack::Brew(BrewPostion[potionIndex].actionId);
 
-				next->score = evaluate(turn, next, Object::Operation::Brew, magic, potionIndex);
+				next->score = (this->*evaluate)(turn, next, Object::Operation::Brew, magic, potionIndex);
 
 				if (next->brewCount < Object::PotionLimit)
 				{
-					chokudaiSearch[turn + 1].push(next);
+					nextQueue.push(next);
 				}
 				else
 				{
-					chokudaiSearch[SearchTurn].push(next);
+					lastQueue.push(next);
 				}
 			}
 		}
@@ -1655,9 +1657,9 @@ private:
 	 * @param magic スペル付加情報
 	 * @param turn 探査ターン
 	 * @param top 探査ノード
-	 * @param chokudaiSearch 探査キュー配列
+	 * @param nextQueue 次の探査キュー
 	 */
-	void searchCast(const size_t castIndex, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
+	void searchCast(const size_t castIndex, const MagicBit magic, const size_t turn, const DataPack top, PriorityQueue &nextQueue)
 	{
 		if (magic.getCastable())
 		{
@@ -1671,9 +1673,9 @@ private:
 
 				next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], 1);
 
-				next->score = evaluate(turn, next, Object::Operation::Cast, magic, castIndex);
+				next->score = (this->*evaluate)(turn, next, Object::Operation::Cast, magic, castIndex);
 
-				chokudaiSearch[turn + 1].push(next);
+				nextQueue.push(next);
 
 				if (CastSpell[castIndex].repeatable)
 				{
@@ -1688,7 +1690,7 @@ private:
 
 						next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], times);
 
-						chokudaiSearch[turn + 1].push(next);
+						nextQueue.push(next);
 
 						times++;
 					}
@@ -1704,9 +1706,9 @@ private:
 	 * @param magic スペル付加情報
 	 * @param turn 探査ターン
 	 * @param top 探査ノード
-	 * @param chokudaiSearch 探査キュー配列
+	 * @param nextQueue 次の探査キュー
 	 */
-	void searchCast(const size_t castIndex, const int times, const MagicBit magic, const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
+	void searchCast(const size_t castIndex, const int times, const MagicBit magic, const size_t turn, const DataPack top, PriorityQueue &nextQueue)
 	{
 		if (magic.getCastable())
 		{
@@ -1722,9 +1724,9 @@ private:
 				}
 				next->commands[turn] = CommandPack::Cast(convertCastActionId[CastSpell[castIndex].actionId], times);
 
-				next->score = evaluate(turn, next, Object::Operation::Cast, magic, castIndex);
+				next->score = (this->*evaluate)(turn, next, Object::Operation::Cast, magic, castIndex);
 
-				chokudaiSearch[turn + 1].push(next);
+				nextQueue.push(next);
 			}
 		}
 	}
@@ -1735,9 +1737,9 @@ private:
 	 * @param magic スペル付加情報
 	 * @param turn 探査ターン
 	 * @param top 探査ノード
-	 * @param chokudaiSearch 探査キュー配列
+	 * @param nextQueue 次の探査キュー
 	 */
-	void searchRest(const size_t turn, const DataPack top, std::array<PriorityQueue, SearchTurn + 1> &chokudaiSearch)
+	void searchRest(const size_t turn, const DataPack top, PriorityQueue &nextQueue)
 	{
 		DataPack next = new (Pool::instance->get()) Data<SearchTurn>(*top);
 
@@ -1749,9 +1751,9 @@ private:
 
 		next->commands[turn] = CommandPack::Rest();
 
-		next->score = evaluate(turn, next, Object::Operation::Rest, MagicBit{}, 0);
+		next->score = (this->*evaluate)(turn, next, Object::Operation::Rest, MagicBit{}, 0);
 
-		chokudaiSearch[turn + 1].push(next);
+		nextQueue.push(next);
 	}
 
 	/**
@@ -1776,7 +1778,7 @@ private:
 			case Object::Operation::Brew:
 			{
 				const auto idx = id - BrewPostion.front().actionId;
-				searchBrew(idx, top->magicList[idx], turn, top, chokudaiSearch);
+				searchBrew(idx, top->magicList[idx], turn, top, chokudaiSearch[turn + 1], chokudaiSearch[SearchTurn]);
 			}
 			break;
 
@@ -1791,19 +1793,19 @@ private:
 					}
 					return static_cast<size_t>(0);
 				}();
-				searchCast(idx, times, top->magicList[idx], turn, top, chokudaiSearch);
+				searchCast(idx, times, top->magicList[idx], turn, top, chokudaiSearch[turn + 1]);
 			}
 			break;
 
 			case Object::Operation::Learn:
 			{
 				const auto idx = id;
-				searchLearn(idx, top->magicList[idx], turn, top, chokudaiSearch);
+				searchLearn(idx, top->magicList[idx], turn, top, chokudaiSearch[turn + 1]);
 			}
 			break;
 
 			case Object::Operation::Rest:
-				searchRest(turn, top, chokudaiSearch);
+				searchRest(turn, top, chokudaiSearch[turn + 1]);
 				break;
 
 			default:
@@ -1816,7 +1818,52 @@ private:
 
 	void thinkOpponent()
 	{
-		
+		const auto &share = Share::Get();
+
+		PriorityQueue que;
+		{
+			DataPack init = new (Pool::instance->get()) Data<SearchTurn>();
+
+			init->inventory = share.getOpponentInventory().inv;
+
+			init->magicList = convertInputData(share.getOpponentCasts());
+
+			init->brewCount = share.getOpponentBrewCount();
+			init->price = share.getOpponentInventory().score;
+
+			const auto brews = share.getBrews();
+			init->bonus3 = brews[0].taxCount;
+			init->bonus1 = brews[1].taxCount;
+
+			que.push(init);
+		}
+
+		PriorityQueue lastQueue;
+		forange(turn, SurveyTurn)
+		{
+			PriorityQueue nextQueue;
+			forange(w, 1000)
+			{
+				if (que.empty())
+					break;
+
+				const auto top = que.top();
+				que.pop();
+
+				forange(i, top->magicList.size())
+				{
+					const auto &magic = top->magicList[i];
+
+					searchBrew(i, magic, turn, top, nextQueue, lastQueue);
+					searchLearn(i, magic, turn, top, nextQueue);
+					searchCast(i, magic, turn, top, nextQueue);
+				}
+
+				searchRest(turn, top, nextQueue);
+
+				Pool::instance->release(top);
+			}
+		}
 	}
 
 public:
@@ -1838,7 +1885,7 @@ public:
 			DataPack init = new (Pool::instance->get()) Data<SearchTurn>();
 
 			init->inventory = share.getInventory().inv;
-			init->delta = LearnSpellPlus[ID78.actionId] + LearnSpellPlus[ID79.actionId] + LearnSpellPlus[ID80.actionId] + LearnSpellPlus[ID81.actionId];
+			//init->delta = LearnSpellPlus[ID78.actionId] + LearnSpellPlus[ID79.actionId] + LearnSpellPlus[ID80.actionId] + LearnSpellPlus[ID81.actionId];
 
 			init->magicList = convertInputData(share.getCasts());
 
@@ -1849,12 +1896,18 @@ public:
 			init->bonus3 = brews[0].taxCount;
 			init->bonus1 = brews[1].taxCount;
 
-			DataPack init2 = new (Pool::instance->get()) Data<SearchTurn>(*init);
+			evaluate = &AI::evaluateMy;
 
-			chokudaiSearch.front().push(init);
 			if (share.getOpponentOperation() == Object::Operation::Cast)
 			{
+				DataPack init2 = new (Pool::instance->get()) Data<SearchTurn>(*init);
+
+				chokudaiSearch.front().push(init);
 				setLastCommand(chokudaiSearch);
+				chokudaiSearch.front().push(init2);
+			}
+			else
+			{
 				chokudaiSearch.front().push(init);
 			}
 		}
@@ -1880,12 +1933,12 @@ public:
 					{
 						const auto &magic = top->magicList[i];
 
-						searchBrew(i, magic, turn, top, chokudaiSearch);
-						searchLearn(i, magic, turn, top, chokudaiSearch);
-						searchCast(i, magic, turn, top, chokudaiSearch);
+						searchBrew(i, magic, turn, top, chokudaiSearch[turn + 1], chokudaiSearch[SearchTurn]);
+						searchLearn(i, magic, turn, top, chokudaiSearch[turn + 1]);
+						searchCast(i, magic, turn, top, chokudaiSearch[turn + 1]);
 					}
 
-					searchRest(turn, top, chokudaiSearch);
+					searchRest(turn, top, chokudaiSearch[turn + 1]);
 
 					Pool::instance->release(top);
 				}
