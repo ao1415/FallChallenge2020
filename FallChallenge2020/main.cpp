@@ -2120,7 +2120,7 @@ public:
 		MilliSecTimer timer(SearchMilliseconds);
 
 		int loopCount = 0;
-		int learnTurnLimit = std::max(3, 10 - gameTurn);
+		int learnTurnLimit = std::max(2, 10 - gameTurn);
 
 		timer.start();
 		while (!timer.check())
