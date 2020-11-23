@@ -1,6 +1,9 @@
 #ifndef _MSC_VER
 
-#pragma GCC optimize "O3,omit-frame-pointer,inline"
+#pragma GCC optimize "O3"
+#pragma GCC optimize "omit-frame-pointer"
+#pragma GCC optimize "inline"
+#pragma GCC optimize "unroll-loops"
 
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
@@ -1446,7 +1449,7 @@ private:
 	std::array<int, BrewPostionSize> opponentBrewTurn;
 	std::array<int, SearchTurn> opponentTurnScore;
 	int opponentInventoryScore;
-	bool firstThink = false;
+	int potionLimit = 6;
 
 	XoShiro128 xoshiro;
 
@@ -1560,8 +1563,15 @@ private:
 		switch (operation)
 		{
 		case Object::Operation::Brew:
-			score += data->price * ((SearchTurn - turn) / 10.0);
-			score += data->brewCount * (SearchTurn - turn);
+			if (data->brewCount < Object::PotionLimit)
+			{
+				score += data->price * ((SearchTurn - turn) / 10.0);
+				score += data->brewCount * (SearchTurn - turn);
+			}
+			else
+			{
+				score += (1 << 16) * (SearchTurn - turn);
+			}
 			break;
 		case Object::Operation::Cast:
 			if (turn >= 8)
@@ -1763,7 +1773,7 @@ private:
 
 				next->score = (this->*evaluate)(turn, next, Object::Operation::Brew, magic, potionIndex);
 
-				if (next->brewCount < Object::PotionLimit)
+				if (next->brewCount < potionLimit)
 				{
 					nextQueue.push(next);
 				}
@@ -1953,7 +1963,6 @@ private:
 
 			init->magicList = convertInputData(share.getOpponentCasts());
 
-			//init->brewCount = share.getOpponentBrewCount();
 			//I—¹”»’è‚ð‚³‚¹‚È‚¢
 			init->brewCount = 0;
 			init->price = share.getOpponentInventory().score;
@@ -2052,9 +2061,7 @@ public:
 			{
 				strongCastSet[topCom.getActionId()] = true;
 			}
-			//errerLine(topData.commands[i].getCommand());
 		}
-		firstThink = true;
 	}
 
 	std::string think()
@@ -2064,20 +2071,6 @@ public:
 		const auto &share = Share::Get();
 		gameTurn = share.getTurn();
 		opponentInventoryScore = share.getOpponentInventory().inv.getScore();
-
-		if (firstThink)
-		{
-			if (share.getOpponentOperation() == Object::Operation::Cast)
-			{
-				const auto com = topData.commands[gameTurn];
-				if (com.getActionId() != 0)
-					return com.getCommand();
-				else
-					firstThink = false;
-			}
-			else
-				firstThink = false;
-		}
 
 		{
 			thinkOpponent();
@@ -2089,7 +2082,6 @@ public:
 			DataPack init = new (Pool::instance->get()) Data<SearchTurn>();
 
 			init->inventory = share.getInventory().inv;
-			//init->delta = LearnSpellPlus[ID78.actionId] + LearnSpellPlus[ID79.actionId] + LearnSpellPlus[ID80.actionId] + LearnSpellPlus[ID81.actionId];
 
 			init->magicList = convertInputData(share.getCasts());
 
@@ -2101,9 +2093,15 @@ public:
 			init->bonus1 = brews[1].taxCount;
 
 			if (gameTurn == 0)
+			{
 				evaluate = &AI::evaluateMyLong;
+				potionLimit = Object::PotionLimit - 1;
+			}
 			else
+			{
 				evaluate = &AI::evaluateMy;
+				potionLimit = Object::PotionLimit;
+			}
 
 			if (share.getOpponentOperation() == Object::Operation::Cast)
 			{
@@ -2222,7 +2220,7 @@ int main()
 
 	Stopwatch sw;
 
-	AI<35, 980, 21> aiFirst;
+	AI<35, 990, 21> aiFirst;
 	AI<> ai;
 
 	{
