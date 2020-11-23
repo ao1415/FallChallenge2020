@@ -27,8 +27,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <random>
-#include <numeric>
 
 #include <chrono>
 #include <memory>
@@ -1628,12 +1626,8 @@ private:
 		const auto &learns = share.getLearns();
 		const auto &brews = share.getBrews();
 
-		return convertInputData(brews, learns, casts);
-	}
-	MagicList convertInputData(const std::vector<Magic> &brews, const std::vector<Magic> &learns, const std::vector<Magic> &casts)
-	{
 		MagicList magicList;
-
+		//for (const auto &learn : learns)
 		forange(i, learns.size())
 		{
 			const auto idx = LearnSpellMap.at(learns[i].delta);
@@ -2035,93 +2029,6 @@ private:
 		}
 	}
 
-	std::array<bool, CastSpellSize> serachCastSet(const MagicList &magicList)
-	{
-		Pool::instance->clear();
-
-		const auto &share = Share::Get();
-
-		std::array<PriorityQueue, SearchTurn + 1> chokudaiSearch;
-		{
-			DataPack init = new (Pool::instance->get()) Data<SearchTurn>();
-
-			init->inventory = share.getInventory().inv;
-
-			init->magicList = magicList;
-
-			init->brewCount = share.getBrewCount();
-			init->price = share.getInventory().score;
-
-			init->bonus3 = 0;
-			init->bonus1 = 0;
-
-			evaluate = &AI::evaluateMyLong;
-
-			chokudaiSearch.front().push(init);
-		}
-
-		MilliSecTimer timer(std::chrono::milliseconds(20));
-		int learnTurnLimit = std::max(3, 10 - gameTurn);
-		timer.start();
-		while (!timer.check())
-		{
-			forange(turn, SearchTurn)
-			{
-				forange(w, ChokudaiWidth)
-				{
-					if (chokudaiSearch[turn].empty())
-						break;
-
-					const auto top = chokudaiSearch[turn].top();
-					chokudaiSearch[turn].pop();
-
-					forange(i, BrewPostionSize)
-					{
-						searchBrew(i, top->magicList[i], turn, top, chokudaiSearch[turn + 1], chokudaiSearch[SearchTurn]);
-					}
-
-					if (turn < learnTurnLimit)
-					{
-						forange(i, LearnSpellSize)
-						{
-							searchLearn(i, top->magicList[i], turn, top, chokudaiSearch[turn + 1]);
-						}
-					}
-
-					forange(i, CastSpellSize)
-					{
-						searchCast(i, top->magicList[i], turn, top, chokudaiSearch[turn + 1]);
-					}
-
-					searchRest(turn, top, chokudaiSearch[turn + 1]);
-
-					Pool::instance->release(top);
-				}
-			}
-		}
-
-		std::array<bool, CastSpellSize> castSet;
-		castSet.fill(false);
-		if (chokudaiSearch.back().empty())
-		{
-			return castSet;
-		}
-		else
-		{
-			const auto top = chokudaiSearch.back().top();
-
-			forange(i, SearchTurn)
-			{
-				if (top->commands[i].getOperation() == Object::Operation::Learn)
-				{
-					castSet[i] = true;
-				}
-			}
-
-			return castSet;
-		}
-	}
-
 public:
 	AI()
 	{
@@ -2299,84 +2206,6 @@ public:
 			return com + " " + debugMes;
 		}
 	}
-
-	void searchCastSet()
-	{
-		std::array<int, CastSpellSize> add;
-		add.fill(0);
-		std::fill(strongCastSet, strongCastSet + CastSpellSize, false);
-
-		const auto &share = Share::Get();
-
-		std::mt19937 engine;
-
-		std::uniform_int_distribution<> countRand(0, 5);
-
-		std::uniform_int_distribution<> oldLearnRand(0, 5);
-		std::uniform_int_distribution<> newLearnRand(LearnSpell[0].actionId, LearnSpell[LearnSpellSize - 1].actionId);
-
-		std::uniform_int_distribution<> oldBrewRand(0, 4);
-		std::uniform_int_distribution<> newBrewRand(BrewPostion[0].actionId, BrewPostion[BrewPostionSize - 1].actionId);
-
-		forange(t, 40)
-		{
-
-			auto learns = share.getLearns();
-			{
-				const auto count = countRand(engine);
-				forange(c, count)
-				{
-					const auto o = oldLearnRand(engine);
-					const auto n = newLearnRand(engine);
-
-					learns[o].actionId = LearnSpell[n].actionId;
-					learns[o].delta.tier0 = LearnSpell[n].delta.tier0;
-					learns[o].delta.tier1 = LearnSpell[n].delta.tier1;
-					learns[o].delta.tier2 = LearnSpell[n].delta.tier2;
-					learns[o].delta.tier3 = LearnSpell[n].delta.tier3;
-					learns[o].price = LearnSpell[n].price;
-					learns[o].repeatable = LearnSpell[n].repeatable;
-				}
-			}
-			auto brews = share.getBrews();
-			{
-				const auto count = countRand(engine);
-				forange(c, count)
-				{
-					const auto o = oldBrewRand(engine);
-					const auto n = newBrewRand(engine) - BrewPostion[0].actionId;
-
-					brews[o].actionId = BrewPostion[n].actionId;
-					brews[o].delta = BrewPostion[n].delta;
-					brews[o].price = BrewPostion[n].price;
-				}
-			}
-
-			MagicList magicList = convertInputData(brews, learns, share.getCasts());
-
-			const auto result = serachCastSet(magicList);
-
-			forange(i, CastSpellSize)
-			{
-				if (result[i])
-				{
-					add[i]++;
-				}
-			}
-		}
-
-		const auto sum = std::accumulate(add.cbegin(), add.cend(), 0);
-		const auto count = std::count_if(add.cbegin(), add.cend(), [](int v) { return v > 0; });
-		const auto ave = sum / count;
-
-		forange(i, CastSpellSize)
-		{
-			if (add[i] >= ave)
-			{
-				strongCastSet[i] = true;
-			}
-		}
-	}
 };
 
 #pragma endregion
@@ -2393,16 +2222,17 @@ int main()
 
 	Stopwatch sw;
 
+	AI<35, 980, 21> aiFirst;
 	AI<> ai;
 
 	{
 		input.loop();
 
 		sw.start();
-		ai.searchCastSet();
-
-		const auto &coms = ai.think();
+		const auto &coms = aiFirst.think();
 		sw.stop();
+
+		ai.setTopData<>(aiFirst);
 
 		errerLine(sw.toString_ms());
 
