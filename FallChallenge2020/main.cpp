@@ -291,6 +291,35 @@ public:
 	}
 };
 
+/**
+ * @brief べき乗テーブルクラス
+ * 
+ * @tparam Size 
+ */
+template <size_t Size>
+class GeometricSequence
+{
+private:
+	double m_data[Size];
+
+public:
+	GeometricSequence(double radix)
+	{
+		static_assert(Size > 0);
+
+		m_data[0] = 1.0;
+
+		for (size_t i = 1; i < Size; i++)
+		{
+			m_data[i] = m_data[i - 1] * radix;
+		}
+	}
+
+	inline double operator[](const size_t index) const { return m_data[index]; }
+
+	constexpr size_t size() const { return Size; }
+};
+
 class Random
 {
 public:
@@ -331,9 +360,8 @@ class XorShift : public Random
 {
 private:
 	value_type m_state = 2463534242u;
-	
-public:
 
+public:
 	/**
 	 * @brief 32bitの乱数値を取得する
 	 *
@@ -344,7 +372,7 @@ public:
 		m_state ^= (m_state << 13);
 		m_state ^= (m_state >> 17);
 		m_state ^= (m_state << 5);
-		
+
 		return m_state;
 	}
 };
@@ -362,7 +390,6 @@ private:
 	value_type m_state3 = 2008045182u;
 
 public:
-
 	/**
 	 * @brief 32bitの乱数値を取得する
 	 *
@@ -855,17 +882,12 @@ public:
 		{
 			std::stringstream ss(readLine());
 			ss >> actionCount;
-			//ignore();
 
 			if (!eof)
 				return false;
 		}
 
-		const auto opponentCastsSize = share.opponentCasts.size();
-		const auto castsSize = share.casts.size();
-
-		const auto pLearns = share.learns;
-		const auto pBrews = share.brews;
+		const auto opc = share.opponentCasts.size();
 
 		share.casts.clear();
 		share.opponentCasts.clear();
@@ -877,7 +899,6 @@ public:
 			std::string actionType;
 
 			std::stringstream ss(readLine());
-			//ignore();
 
 			int tier0, tier1, tier2, tier3;
 			int castable, repeatable;
@@ -925,49 +946,15 @@ public:
 			}
 		}
 
-		share.opponentOperation = Object::Operation::Cast;
-		if (share.opponentCasts.size() != opponentCastsSize)
+		if (opc != share.opponentCasts.size())
 		{
-			int match = 0;
-			for (const auto b : pLearns)
-			{
-				for (const auto n : share.learns)
-				{
-					if (b.actionId == n.actionId)
-					{
-						match++;
-					}
-				}
-			}
-
-			if (share.opponentCasts.size() != castsSize)
-			{
-				if (match < 5)
-					share.opponentOperation = Object::Operation::Learn;
-			}
-			else
-			{
-				if (match < 6)
-					share.opponentOperation = Object::Operation::Learn;
-			}
+			share.opponentOperation = Object::Operation::Learn;
 		}
-		// const auto brewMatch = std::count_if(share.brews.begin(),share.brews.end(),[&](const Magic& brew){
-		// 	return std::any_of(bBrews.begin(), bBrews.end(), [&](const Magic& bBrew) {
-		// 		return bBrew.actionId == brew.actionId;
-		// 	});
-		// });
-		// const auto learnMatch = std::count_if(share.learns.cbegin(),share.learns.cend(),[&](const Magic& learn){
-		// 	return std::any_of(bLearns.cbegin(), bLearns.cend(), [&](const Magic& bLearn) {
-		// 		return bLearn.actionId == learn.actionId;
-		// 	});
-		// });
 
-		bool isBrew = false;
 		{
 			auto &inv = share.inventory;
 
 			std::stringstream ss(readLine());
-			//ignore();
 
 			int tier0, tier1, tier2, tier3, price;
 
@@ -986,7 +973,6 @@ public:
 			{
 				inv.score = price;
 				share.brewCount++;
-				isBrew = true;
 			}
 		}
 
@@ -994,7 +980,6 @@ public:
 			auto &inv = share.opponentInventory;
 
 			std::stringstream ss(readLine());
-			//ignore();
 
 			int tier0, tier1, tier2, tier3, price;
 
@@ -1013,29 +998,7 @@ public:
 			{
 				inv.score = price;
 				share.opponentBrewCount++;
-
-				int match = 0;
-				for (const auto b : pBrews)
-				{
-					for (const auto n : share.brews)
-					{
-						if (b.actionId == n.actionId)
-						{
-							match++;
-						}
-					}
-				}
-
-				if (isBrew)
-				{
-					if (match < 4)
-						share.opponentOperation = Object::Operation::Brew;
-				}
-				else
-				{
-					if (match < 5)
-						share.opponentOperation = Object::Operation::Brew;
-				}
+				share.opponentOperation = Object::Operation::Brew;
 			}
 		}
 
@@ -1432,14 +1395,13 @@ template <int SearchTurn = 22, int TimeLimit = 45, int MemoryLimit = 19>
 class AI
 {
 public:
-	//inline static const int SearchTurn = 22;
 	inline static const int ChokudaiWidth = 3;
 	inline static const int SurveyTurn = 7;
 
 	inline static const auto SearchMilliseconds = std::chrono::milliseconds{TimeLimit};
 	inline static const auto SurveyMilliseconds = std::chrono::milliseconds{3};
 
-	inline static const EvaluateExp<SearchTurn> evaluateExp;
+	inline static const GeometricSequence<SearchTurn> evaluateSeq{0.95};
 	inline static const EvaluateExp<48> learnExp;
 
 	using MagicList = std::array<MagicBit, std::max(LearnSpellSize, std::max(CastSpellSize, BrewPostionSize))>;
@@ -1515,7 +1477,7 @@ private:
 				else
 				{
 					//相手より遅い場合は減点
-					//score += data->price * evaluateExp[turn - opponentTurn];
+					//score += data->price * evaluateSeq[turn - opponentTurn];
 					score += data->price * 0.95;
 				}
 
@@ -1541,10 +1503,24 @@ private:
 			}
 			break;
 		case Object::Operation::Cast:
-			if (gameTurn + turn >= 4)
-				score += 1.0;
+
+			if (gameTurn + turn >= 6)
+			{
+				double invScore = 0;
+				invScore += data->inventory.tier0 * 1.25;
+				invScore += data->inventory.tier1 * 2;
+				invScore += data->inventory.tier2 * 3;
+				invScore += data->inventory.tier3 * 4;
+				invScore += data->inventory.getScore() * 1.5;
+
+				score += invScore / 31;
+				
+				score += (5 - std::abs(data->inventory.getSum() - Object::InventorySize / 2)) / 5.0;
+			}
 			else
+			{
 				score -= 1.0;
+			}
 			break;
 		case Object::Operation::Learn:
 
@@ -1567,69 +1543,14 @@ private:
 		}
 
 		//経過ターンによる補正
-		score = (score * evaluateExp[turn]);
+		score = (score * evaluateSeq[turn]);
 
 		//乱数によるブレ
 		//score = score * SearchTurn + xoshiro.nextFloat();
 
 		return topScore + score;
 	}
-	/**
-	 * @brief 自分の評価関数(長期用)
-	 *
-	 * @param turn 探査しているターン数(相対値)
-	 * @param data 処理を行った後の状態
-	 * @param operation 処理内容
-	 * @param magic 処理を行ったスペルの状態
-	 * @param index 処理を行ったスペル
-	 * @return double 評価値
-	 */
-	inline double evaluateMyLong(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index)
-	{
-		const double topScore = data->score;
-		double score = 0;
 
-		switch (operation)
-		{
-		case Object::Operation::Brew:
-			if (data->brewCount < Object::PotionLimit)
-			{
-				score += data->price * ((SearchTurn - turn) / 10.0);
-				score += data->brewCount * (SearchTurn - turn);
-			}
-			else
-			{
-				score += (1 << 16) * (SearchTurn - turn);
-			}
-			break;
-		case Object::Operation::Cast:
-			if (turn >= 8)
-				score += 1.0;
-			else
-				score -= 1.0;
-			break;
-		case Object::Operation::Learn:
-
-			score += learnExp[std::min(learnExp.size() - 1, gameTurn + turn)];
-			score += -magic.getLearnTomeIndex();
-			break;
-		case Object::Operation::Rest:
-			break;
-		case Object::Operation::Wait:
-			break;
-
-		default:
-			break;
-		}
-
-		//経過ターンによる補正
-		score = (score * evaluateExp[std::max(0, static_cast<int>(turn) - 8)]);
-
-		//乱数によるブレ
-		score = score * 10 + xoshiro.nextFloat();
-
-		return topScore + score;
-	}
 	inline double evaluateOpponent(const size_t turn, const DataPack data, const Object::Operation operation, const MagicBit magic, const size_t index)
 	{
 		const double topScore = data->score;
@@ -1657,7 +1578,7 @@ private:
 
 		return topScore + score;
 	}
-
+	
 	MagicList convertInputData(const std::vector<Magic> &casts)
 	{
 		const auto &share = Share::Get();
@@ -2121,16 +2042,8 @@ public:
 			init->bonus3 = brews[0].taxCount;
 			init->bonus1 = brews[1].taxCount;
 
-			if (gameTurn == 0)
-			{
-				evaluate = &AI::evaluateMyLong;
-				potionLimit = Object::PotionLimit - 1;
-			}
-			else
-			{
-				evaluate = &AI::evaluateMy;
-				potionLimit = Object::PotionLimit;
-			}
+			evaluate = &AI::evaluateMy;
+			potionLimit = Object::PotionLimit;
 
 			if (share.getOpponentOperation() == Object::Operation::Cast)
 			{
@@ -2249,22 +2162,7 @@ int main()
 
 	Stopwatch sw;
 
-	AI<35, 990, 21> aiFirst;
 	AI<> ai;
-
-	{
-		input.loop();
-
-		sw.start();
-		const auto &coms = aiFirst.think();
-		sw.stop();
-
-		ai.setTopData<>(aiFirst);
-
-		errerLine(sw.toString_ms());
-
-		std::cout << coms << " " << sw.toString_ms() << std::endl;
-	}
 
 	while (input.loop())
 	{
@@ -2281,3 +2179,4 @@ int main()
 }
 
 #pragma endregion
+
