@@ -1471,17 +1471,17 @@ private:
 				const auto opponentTurn = opponentBrewTurn[index];
 
 				score += data->inventory.getScore() / 2;
-				//score += data->brewCount;
+				score += data->brewCount;
 
 				if (turn <= opponentTurn)
 				{
-					score += data->price * ((static_cast<double>(SearchTurn - turn) / SearchTurn) + 1.0);
+					score += data->price;
 				}
 				else
 				{
 					//‘ŠŽè‚æ‚è’x‚¢ê‡‚ÍŒ¸“_
 					score += data->price * evaluateSeq[turn - opponentTurn];
-					//score += data->price * 0.9;
+					//score += data->price * 0.95;
 				}
 			}
 			else
