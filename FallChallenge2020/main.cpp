@@ -1477,8 +1477,8 @@ private:
 				else
 				{
 					//相手より遅い場合は減点
-					//score += data->price * evaluateSeq[turn - opponentTurn];
-					score += data->price * 0.95;
+					score += data->price * evaluateSeq[turn - opponentTurn];
+					//score += data->price * 0.95;
 				}
 
 				//score += data->brewCount / 6.0; //早期ボーナス
@@ -1510,10 +1510,10 @@ private:
 				invScore += data->inventory.tier0 * 1.25;
 				invScore += data->inventory.tier1 * 2;
 				invScore += data->inventory.tier2 * 3;
-				invScore += data->inventory.tier3 * 4;
+				invScore += data->inventory.tier3 * 4.25;
 				invScore += data->inventory.getScore() * 1.5;
 
-				score += invScore / 31;
+				score += invScore / 31.0;
 				
 				score += (5 - std::abs(data->inventory.getSum() - Object::InventorySize / 2)) / 5.0;
 			}
@@ -1534,6 +1534,7 @@ private:
 				score += 1.0;
 			break;
 		case Object::Operation::Rest:
+			score -= 1.0;
 			break;
 		case Object::Operation::Wait:
 			break;
