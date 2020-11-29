@@ -1470,18 +1470,19 @@ private:
 			{
 				const auto opponentTurn = opponentBrewTurn[index];
 
+				score += data->inventory.getScore() / 2;
+				//score += data->brewCount;
+
 				if (turn <= opponentTurn)
 				{
-					score += data->price;
+					score += data->price * ((static_cast<double>(SearchTurn - turn) / SearchTurn) + 1.0);
 				}
 				else
 				{
 					//相手より遅い場合は減点
 					score += data->price * evaluateSeq[turn - opponentTurn];
-					//score += data->price * 0.95;
+					//score += data->price * 0.9;
 				}
-
-				//score += data->brewCount / 6.0; //早期ボーナス
 			}
 			else
 			{
@@ -1514,7 +1515,7 @@ private:
 				invScore += data->inventory.getScore() * 1.5;
 
 				score += invScore / 31.0;
-				
+
 				score += (5 - std::abs(data->inventory.getSum() - Object::InventorySize / 2)) / 5.0;
 			}
 			else
@@ -1530,8 +1531,8 @@ private:
 
 			score += (magic.getLearnTaxCount() - (magic.getLearnTomeIndex())) / 3.0;
 
-			if (strongCastSet[index])
-				score += 1.0;
+			// if (strongCastSet[index])
+			// 	score += 1.0;
 			break;
 		case Object::Operation::Rest:
 			score -= 1.0;
@@ -1579,7 +1580,7 @@ private:
 
 		return topScore + score;
 	}
-	
+
 	MagicList convertInputData(const std::vector<Magic> &casts)
 	{
 		const auto &share = Share::Get();
@@ -2180,4 +2181,3 @@ int main()
 }
 
 #pragma endregion
-
